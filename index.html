@@ -983,10 +983,8 @@ function parkLineData(ev){
   return {signed:0};
 }
 function parkCompute(ev, agg){
-  const line = parkLineData(ev);
-  const devSum = agg.homeSum + agg.homeN * line.signed + agg.awaySum - agg.awayN * line.signed;
   const n = agg.homeN + agg.awayN;
-  const ysSigned = n ? Math.round(10 * devSum / n) / 10 : 0;
+  const ysSigned = n ? Math.round(10 * (agg.homeSum - agg.awaySum) / n) / 10 : 0;
   const favAbbr = ysSigned === 0 ? null : (ysSigned > 0 ? ev.home.abbr : ev.away.abbr);
   return {n:n, homeN:agg.homeN, awayN:agg.awayN, homePct: agg.homePct, awayPct: agg.awayPct,
     ysSigned: ysSigned, ysReady: n >= 3,
