@@ -129,7 +129,7 @@ footer{text-align:center; color:var(--mut); font-size:12.5px; margin-top:26px; l
 .mrow{display:flex; gap:10px; margin-top:10px}
 .mrow .btn{flex:1; margin-top:0}
 .footlinks{text-align:center; margin-bottom:8px}
-.footlinks button{background:none; border:none; color:var(--gold); font-weight:900; letter-spacing:.1em; cursor:pointer; font-size:13px; padding:4px 10px; font-family:inherit}
+.footlinks a{background:none; border:none; color:var(--gold); font-weight:900; letter-spacing:.1em; cursor:pointer; font-size:13px; padding:4px 10px; font-family:inherit; text-decoration:none; display:inline-block}
 .linkrow{display:block; background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin:8px 0; color:var(--text); text-decoration:none; text-align:left}
 .linkrow b{color:var(--gold)}
 .linkrow .small{color:var(--mut)}
@@ -173,55 +173,8 @@ footer{text-align:center; color:var(--mut); font-size:12.5px; margin-top:26px; l
       <div class="small mut" style="margin-top:10px">Free to play, bragging rights only.</div>
     </div>
   </div>
-  <div class="modal" id="sitesModal" style="display:none">
-    <div class="modalbox">
-      <div class="logo">OUR <span class="y">SITES</span></div>
-      <div class="parksub">Everything under the Dog Park umbrella.</div>
-      <a class="linkrow" href="https://dogparkgames.blogspot.com/" target="_blank" rel="noopener"><b>Dog Park Blog</b><br><span class="small">News, standings and the Game Yard. The weekly leaderboard lives here.</span></a>
-      <a class="linkrow" href="https://github.com/DogParkGames" target="_blank" rel="noopener"><b>Dog Park on GitHub</b><br><span class="small">The game itself, open for anyone to see how the Park is built.</span></a>
-      <a class="linkrow" href="https://creature-construct.blogspot.com/" target="_blank" rel="noopener"><b>Creature Construct</b><br><span class="small">Creature Constructive Words: the replica I control, word for word the original.</span></a>
-      <a class="linkrow" href="https://creatureconstruct.blogspot.com/" target="_blank" rel="noopener"><b>Creature Construct, the original</b><br><span class="small">The 2026 original blog, read only. Home of the memorial page.</span></a>
-      <div class="mrow"><button class="btn ghost closeInfo">BACK TO THE PARK</button></div>
-    </div>
-  </div>
-  <div class="modal" id="contactModal" style="display:none">
-    <div class="modalbox">
-      <div class="logo">CONTACT <span class="y">THE PARK</span></div>
-      <div class="parksub">Questions, bad lines, account help, ideas.</div>
-      <a class="linkrow" href="mailto:strongmindgrow@gmail.com"><b>Email the Park</b><br><span class="small">strongmindgrow@gmail.com, the fastest way to reach me.</span></a>
-      <a class="linkrow" href="https://dogparkgames.blogspot.com/" target="_blank" rel="noopener"><b>Game talk on the blog</b><br><span class="small">Rival talk and callouts live in the comments on the standings posts.</span></a>
-      <a class="linkrow" href="https://github.com/DogParkGames" target="_blank" rel="noopener"><b>GitHub</b><br><span class="small">Found a bug in the game? The code and its issues live here.</span></a>
-      <div class="mrow"><button class="btn ghost closeInfo">BACK TO THE PARK</button></div>
-    </div>
-  </div>
-  <div class="modal" id="supportModal" style="display:none">
-    <div class="modalbox">
-      <div class="logo">SUPPORT <span class="y">THE PARK</span></div>
-      <div class="parksub">Dog Park is free to play, forever. Support keeps it free and builds what comes next.</div>
-      <a class="linkrow" href="https://www.gofundme.com/f/dog-park-game-studio-help-build-free-games" target="_blank" rel="noopener"><b>Dog Park Game Studio</b><br><span class="small">Help build free games. The fund covers the Google Play developer account, a domain, art and sound tools, and a work laptop.</span></a>
-      <a class="linkrow" href="https://www.gofundme.com/f/help-me-found-strong-mind-grow-foundation" target="_blank" rel="noopener"><b>Strong Mind Grow Foundation</b><br><span class="small">Help found the mental health charity behind the Park. Not tax deductible yet, and we say so plainly.</span></a>
-      <a class="linkrow" href="https://buy.stripe.com/28E14ofAs9kl9JUe3jbQY05" target="_blank" rel="noopener"><b>Supporter Pass, $5 one time</b><br><span class="small">A gold name and paw badge on your Score Card and the Park Board, plus the Supporter trophy. Your PARK code arrives by email after checkout; redeem it under MY PARK.</span></a>
-      <div class="mrow"><button class="btn ghost closeInfo">BACK TO THE PARK</button></div>
-    </div>
-  </div>
-  <div class="modal" id="faqModal" style="display:none">
-    <div class="modalbox">
-      <div class="logo">PARK <span class="y">FAQs</span></div>
-      <div class="parksub">The questions every new pup asks.</div>
-      <div class="linkrow"><b>Is Dog Park free?</b><br><span class="small">Yes. Free to play, forever. No entry fees, no cash prizes, bragging rights only.</span></div>
-      <div class="linkrow"><b>How do I play?</b><br><span class="small">Pick the winner of each game and call the winning margin with the slider. Your pick locks the moment the game starts. On a UFC fight, pick the winner and the round it ends.</span></div>
-      <div class="linkrow"><b>How does scoring work?</b><br><span class="small">The Direct Hit way: call the exact margin for 100 points. Land inside ten and every point you are off costs 10. Miss the winner or land outside ten and it scores 0. No negatives, ever. UFC: exact round 100, one round off 50, right winner with the round missed 25.</span></div>
-      <div class="linkrow"><b>How do NHL picks work?</b><br><span class="small">Hockey margins are goals, and they are small: most games end 1 or 2 goals apart, and an overtime or shootout win is always by 1 goal. The hockey line (the puck line) is almost always 1.5, so at slider 0 the favorite's call is win by 2 and the underdog's call is win by 1. Exact margin still pays 100, and every goal you are off costs 10.</span></div>
-      <div class="linkrow"><b>What is the Yardstick?</b><br><span class="small">The Park's projected margin. It starts at the posted line and every member pick moves it. Once a game has three or more member picks, the Park Yardstick becomes the line you play against.</span></div>
-      <div class="linkrow"><b>Why join the Park?</b><br><span class="small">Guest picks stay on your own device. Members verify with an email code, and their picks count in the Yardstick and the standings. Your verified @name is yours alone, nobody else can take it.</span></div>
-      <div class="linkrow"><b>Can I change my card name?</b><br><span class="small">Guest names stamp once and lock, like a dog tag. When you verify, your @name takes over the tag for good.</span></div>
-      <div class="linkrow"><b>What are season codes?</b><br><span class="small">Easiest is your invite link: tap INVITE A PLAYER in MY PARK, send it, and your card lands on their Park Board automatically. Your Score Card also makes a DP code you can trade by hand. Either way, their card joins your Park Board and yours joins theirs.</span></div>
-      <div class="linkrow"><b>Is this gambling?</b><br><span class="small">No. No money in, no prizes of value out. Points, trophies and bragging rights only.</span></div>
-      <div class="mrow"><button class="btn ghost closeInfo">BACK TO THE PARK</button></div>
-    </div>
-  </div>
   <footer>
-    <div class="footlinks"><button id="sitesBtn">SITES</button><button id="contactBtn">CONTACT</button><button id="supportBtn">SUPPORT</button><button id="faqBtn">FAQ</button></div>
+    <div class="footlinks"><a href="https://dogparkgames.blogspot.com/p/sites.html" target="_blank" rel="noopener">SITES</a><a href="https://dogparkgames.blogspot.com/p/contact.html" target="_blank" rel="noopener">CONTACT</a><a href="https://dogparkgames.blogspot.com/p/support.html" target="_blank" rel="noopener">SUPPORT</a><a href="https://dogparkgames.blogspot.com/p/faq.html" target="_blank" rel="noopener">FAQ</a></div>
     Dog Park, a revival of the classic pick'em yard, rebuilt for today's fan.<br>
     Free to play, bragging rights only. Scores and schedules update live from the ESPN feed.
   </footer>
@@ -865,7 +818,7 @@ function renderYard(){
   h += '<div class="card"><div class="rankline">🏆 TROPHY CASE · ' + tc.filter(x => x.got).length + ' of ' + tc.length + ' earned</div><div class="trophies">' +
     tc.map(x => '<div class="trophy' + (x.got ? '' : ' locked') + '"><div class="emo">' + x.emo + '</div><div class="tname">' + x.name + '</div><div class="tdesc">' + x.desc + '</div></div>').join("") + '</div></div>';
   // Yard Board
-  const board = [card].concat(save.board || []).slice().sort((a, b) => b.tot.points - a.tot.points);
+  const board = [card].concat((save.board || []).filter(b => b.name !== card.name)).slice().sort((a, b) => b.tot.points - a.tot.points);
   h += '<div class="card"><div class="rankline">THE PARK BOARD</div><div class="tblwrap"><table><tr><th>RANK</th><th>FAN</th><th>TITLE</th><th>POINTS</th><th>PICKS</th><th>WIN %</th><th>DIRECT HITS</th></tr>';
   board.forEach((c, i) => { const medal = i === 0 ? "🏆" : i === 1 ? "🥈" : i === 2 ? "🥉" : String(i + 1);
     h += '<tr><td>' + medal + '</td><td>' + esc(c.name) + (c.sup ? ' <span style="color:var(--gold)">🐾</span>' : '') + (c.name === card.name ? " (you)" : "") + '</td><td>' + rankEmoji(c.tot.points) + ' ' + rankTitle(c.tot.points) + '</td><td>' + c.tot.points + '</td><td>' + c.tot.picks + '</td><td>' + pct(c.tot.wins, c.tot.picks) + '%</td><td>' + c.tot.dh + '</td></tr>'; });
@@ -1080,18 +1033,6 @@ function wireWelcome(){
   if(join) join.addEventListener("click", () => { hideWelcome(); view = "YARD"; refresh(true); });
   if(guest) guest.addEventListener("click", () => { save.welcomed = true; store(); hideWelcome(); });
 }
-function wireInfoPages(){
-  [["sitesBtn","sitesModal"],["contactBtn","contactModal"],["supportBtn","supportModal"],["faqBtn","faqModal"]].forEach(([b, mid]) => {
-    const btn = document.getElementById(b);
-    const modal = document.getElementById(mid);
-    if(btn && modal) btn.addEventListener("click", () => { modal.style.display = "flex"; });
-    if(modal){
-      const cb = modal.querySelector(".closeInfo");
-      if(cb) cb.addEventListener("click", () => { modal.style.display = "none"; });
-      modal.addEventListener("click", e => { if(e.target === modal) modal.style.display = "none"; });
-    }
-  });
-}
 function drawCardImage(){
   const c = myCard();
   const tcount = trophyCase().filter(x => x.got).length;
@@ -1258,7 +1199,6 @@ checkInviteLink();
 refresh(true);
 scheduleAuto();
 wireWelcome();
-wireInfoPages();
 if(!save.member && !save.welcomed) showWelcome();
 </script>
 </body>
