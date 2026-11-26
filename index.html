@@ -921,8 +921,10 @@ function renderYard(){
     try{
       const c = decodeCardCode(raw);
       if(!c || !c.tot || typeof c.tot.points !== "number" || !c.name) throw new Error("bad");
+      if(c.name === myCard().name){ msg.textContent = "That is your own card, it is already on the board."; return; }
       save.board = (save.board || []).filter(b => b.name !== c.name);
-      save.board.push(c); store(); msg.textContent = "Added " + c.name + "."; refresh(false);
+      save.board.push(c); store(); refresh(false);
+      const m2 = document.getElementById("importMsg"); if(m2) m2.textContent = "Added " + c.name + " to your Park Board.";
     }catch(e){ msg.textContent = "That code did not read. Check it and try again."; }
   });
 }
