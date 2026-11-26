@@ -62,6 +62,9 @@ nav.sports button .dot{display:inline-block; width:8px; height:8px; border-radiu
 .yszero{position:absolute; left:50%; top:-2px; width:2px; height:14px; background:var(--ink)}
 .ysmark{position:absolute; top:-4px; width:5px; height:18px; background:var(--gold); border-radius:2px; transform:translateX(-50%)}
 .ysmark.park{background:var(--green); width:7px; height:22px; top:-6px; border:1px solid #0b0e12; z-index:2}
+.ysticks{position:relative; height:7px; margin:2px 1px 0}
+.ytick{position:absolute; bottom:0; width:1px; height:4px; background:var(--mut); opacity:.45; transform:translateX(-50%)}
+.ytick.whole{height:7px; opacity:.85}
 .splitbar{display:flex;height:10px;border-radius:5px;overflow:hidden;margin-top:5px;border:1px solid #0b0e12}
 .splitbar .sb-away{background:var(--gold)}
 .splitbar .sb-home{background:var(--green)}
@@ -408,6 +411,8 @@ function yardstickRuler(ev){
   if(lineSigned !== null) marks += '<div class="ysmark" style="left:' + pos(lineSigned) + '%"></div>';
   if(pg && pg.n >= 1) marks += '<div class="ysmark park" style="left:' + pos(pg.ysSigned) + '%"></div>';
   if(lineSigned === null && !(pg && pg.n >= 1)) marks += '<div class="ysmark" style="left:50%"></div>';
+  let ticks = "";
+  for(let t = -max * 2; t <= max * 2; t++) ticks += '<div class="ytick' + (t % 2 === 0 ? " whole" : "") + '" style="left:' + pos(t / 2) + '%"></div>';
   const head = [];
   if(lineText) head.push("LINE " + (lineSigned > 0 ? "+" : "") + lineSigned + " \u00b7 " + lineText);
   if(pg && pg.n >= 1) head.push("PARK " + (pg.ysSigned > 0 ? "+" : "") + pg.ysSigned + " \u00b7 " + pg.ysText);
@@ -424,8 +429,8 @@ function yardstickRuler(ev){
     parkRow = '<div class="joinline" style="text-align:center;margin-top:6px"><span class="you" style="color:var(--blue);font-weight:900">THE PARK</span> <span class="mut">is picking</span> <b>' + pg.homePct + '% ' + esc(ev.home.abbr) + ' \u00b7 ' + pg.awayPct + '% ' + esc(ev.away.abbr) + '</b> <span class="mut">(' + pg.n + ' picks)</span><span class="mut">' + verdict + '</span><div class="splitbar"><div class="sb-away" style="width:' + pg.awayPct + '%"></div><div class="sb-home" style="width:' + pg.homePct + '%"></div></div></div>';
   }
   return '<div class="ysruler"><div class="ysends"><span>' + esc(ev.away.abbr) + '</span><span class="ysmid">' + head.join("  \u00b7  ") + '</span><span>' + esc(ev.home.abbr) + '</span></div>' +
-    '<div class="ystrack"><div class="yszero"></div>' + marks + '</div>' +
-    ((lineSigned !== null || (pg && pg.n >= 1)) ? '<div class="small mut" style="text-align:center;margin-top:3px"><span style="color:var(--gold)">\u275a</span> the line <span style="color:var(--green)">\u275a</span> the Park</div>' : '') + '</div>' + parkRow;
+    '<div class="ystrack"><div class="yszero"></div>' + marks + '</div><div class="ysticks">' + ticks + '</div>' +
+    ((lineSigned !== null || (pg && pg.n >= 1)) ? '<div class="small mut" style="text-align:center;margin-top:3px"><span style="color:var(--gold)">\u275a</span> the line <span style="color:var(--green)">\u275a</span> the Park \u00b7 ticks every 0.5</div>' : '') + '</div>' + parkRow;
 }
 function marginBars(pick, ev){
   const rows = [];
@@ -495,7 +500,8 @@ function gameCard(ev){
       '<div class="marginrow"><span class="small mut" style="font-weight:900">CALL</span>' +
         '<input type="range" min="-' + SPORTS[ev.sport].max + '" max="' + SPORTS[ev.sport].max + '" value="' + d.dev + '" data-margin="' + ev.id + '">' +
         '<span class="marginval" id="mv-' + ev.id + '">' + (d.dev > 0 ? "+" : "") + d.dev + '</span></div>' +
-      '<div class="small mut" style="text-align:center">0 = the call the Yardstick suggests · slide right to raise your call, left to lower it</div>') +
+      '<div class="small mut" style="text-align:center">0 = the call the Yardstick suggests · slide right to raise your call, left to lower it</div>' +
+      '<div style="text-align:center;margin-top:6px"><button class="btn ghost small" data-matchline="' + ev.id + '" id="ml-' + ev.id + '" style="display:' + (d.side ? 'inline-block' : 'none') + '">MATCH THE LINE</button></div>') +
       (ev.sport === "NHL" ? '<div class="small mut" style="text-align:center;margin-top:4px">🏒 Calls are in goals: most NHL games end 1 or 2 goals apart, and an overtime or shootout win is always by 1.</div>' : '') +
       '<div class="pickread" id="pr-' + ev.id + '">' + pickReadHTML(ev, d) + '</div>' +
       '<div style="text-align:center"><button class="btn" data-confirm="' + ev.id + '" id="cf-' + ev.id + '" style="display:' + (confirmVisible(ev, d) ? 'inline-block' : 'none') + '">' + (pick ? 'UPDATE MY PICK' : 'LOCK IT IN') + '</button></div>' +
@@ -565,6 +571,7 @@ function renderSport(sport){
 function parkMeterHTML(){
   let totalPicks = 0, covered = 0, board = 0;
   let diffs = [], leans = [], consensus = null, recW = 0, recL = 0, misses = [];
+  let wider = 0, tighter = 0, level = 0, hhPark = 0, hhLine = 0, hhEven = 0; const hhParkMiss = [], lineMisses = [];
   const perSport = {};
   for(const k of Object.keys(SPORTS)){
     for(const ev of (feed[k] || {}).events || []){
@@ -577,11 +584,19 @@ function parkMeterHTML(){
         const ls = ev.yardstick.side === "home" ? ev.yardstick.margin : -ev.yardstick.margin;
         const df = Math.abs(pg.ysSigned) - Math.abs(ls);
         diffs.push(df);
+        if(df > 0.24) wider++; else if(df < -0.24) tighter++; else level++;
         leans.push({label: ev.away.abbr + " at " + ev.home.abbr, diff: Math.round(10 * df) / 10, n: pg.n});
       }
       if(pg.n >= 3 && ev.state !== "post"){
         const top = Math.max(pg.homePct, pg.awayPct);
         if(!consensus || top > consensus.top) consensus = {top: top, side: pg.homePct >= pg.awayPct ? "home" : "away", ev: ev, n: pg.n};
+      }
+      if(ev.state === "post" && ev.completed && ev.sport !== "UFC" && ev.yardstick && ev.home.score !== null && ev.away.score !== null){
+        const act = ev.home.score - ev.away.score;
+        const lsH = ev.yardstick.side === "home" ? ev.yardstick.margin : -ev.yardstick.margin;
+        const pe = Math.abs(pg.ysSigned - act), le = Math.abs(lsH - act);
+        if(pe < le - 1e-9) hhPark++; else if(le < pe - 1e-9) hhLine++; else hhEven++;
+        hhParkMiss.push(pe); lineMisses.push(le);
       }
       if(pg.n >= 3 && ev.state === "post" && ev.completed){
         const majHome = pg.homePct >= pg.awayPct;
@@ -600,7 +615,10 @@ function parkMeterHTML(){
     const avg = Math.round(10 * diffs.reduce((a, b) => a + b, 0) / diffs.length) / 10;
     const mpos = 50 + (Math.max(-5, Math.min(5, avg)) / 5) * 50;
     const word = avg > 0.24 ? "wider than the line" : (avg < -0.24 ? "tighter than the line" : "right on the line");
-    h += '<div class="ysruler" style="text-align:left"><div class="ysends"><span>tighter</span><span class="ysmid">PARK vs THE LINE: ' + (avg > 0 ? "+" : "") + avg + ' pts \u00b7 ' + word + '</span><span>wider</span></div><div class="ystrack"><div class="yszero"></div><div class="ysmark park" style="left:' + mpos + '%"></div></div></div>';
+    let mticks = "";
+    for(let t = -10; t <= 10; t++) mticks += '<div class="ytick' + (t % 2 === 0 ? " whole" : "") + '" style="left:' + (50 + (t / 2) / 5 * 50) + '%"></div>';
+    h += '<div class="ysruler" style="text-align:left"><div class="ysends"><span>tighter</span><span class="ysmid">PARK vs THE LINE: ' + (avg > 0 ? "+" : "") + avg + ' pts \u00b7 ' + word + '</span><span>wider</span></div><div class="ystrack"><div class="yszero"></div><div class="ysmark park" style="left:' + mpos + '%"></div></div><div class="ysticks">' + mticks + '</div></div>';
+    if(diffs.length >= 2) h += '<div class="small mut" style="margin-top:3px">Park wider on <b style="color:var(--ink)">' + wider + '</b> games \u00b7 tighter on <b style="color:var(--ink)">' + tighter + '</b> \u00b7 level on <b style="color:var(--ink)">' + level + '</b> \u00b7 ticks every 0.5</div>';
   }
   if(consensus){
     const t = consensus.side === "home" ? consensus.ev.home : consensus.ev.away;
@@ -610,6 +628,11 @@ function parkMeterHTML(){
     let line = '<div class="small" style="margin-top:4px">Park record on finished games: <b>' + recW + ' right, ' + recL + ' wrong</b>';
     if(misses.length) line += ' <span class="mut">\u00b7 the Park average misses the final margin by ' + (Math.round(10 * misses.reduce((a, b) => a + b, 0) / misses.length) / 10) + ' pts</span>';
     h += line + '</div>';
+  }
+  if(hhPark + hhLine + hhEven > 0){
+    const pm = Math.round(10 * hhParkMiss.reduce((a, b) => a + b, 0) / hhParkMiss.length) / 10;
+    const lm = Math.round(10 * lineMisses.reduce((a, b) => a + b, 0) / lineMisses.length) / 10;
+    h += '<div class="small" style="margin-top:4px">Park vs the Line on finished games: <b>Park closer ' + hhPark + ' \u00b7 Line closer ' + hhLine + ' \u00b7 even ' + hhEven + '</b> <span class="mut">\u00b7 average miss: Park ' + pm + ' pts, the Line ' + lm + ' pts</span></div>';
   }
   const sportKeys = Object.keys(perSport).filter(k => perSport[k] > 0);
   if(sportKeys.length){
@@ -719,6 +742,8 @@ function syncPickUI(ev){
     } else { sl.min = -SPORTS[ev.sport].max; sl.max = SPORTS[ev.sport].max; }
     if(parseInt(sl.value, 10) !== d.dev) sl.value = d.dev;
   }
+  const ml = document.getElementById("ml-" + ev.id);
+  if(ml) ml.style.display = d.side ? "inline-block" : "none";
   const rm = document.getElementById("rm-" + ev.id);
   if(rm) rm.textContent = removeArm[ev.id] ? "Tap again to remove it for good" : "Remove my pick";
 }
@@ -741,6 +766,12 @@ function wirePickControls(root){
     const ev = findEvent(sl.dataset.margin); if(!ev) return;
     const d = drafts[ev.id] || (drafts[ev.id] = {side: null, dev: parseInt(sl.value, 10), touched: true});
     d.dev = parseInt(sl.value, 10); d.touched = true; delete d.frozen;
+    syncPickUI(ev);
+  }));
+  root.querySelectorAll("[data-matchline]").forEach(btn => btn.addEventListener("click", () => {
+    const ev = findEvent(btn.dataset.matchline); if(!ev) return;
+    const d = drafts[ev.id]; if(!d || !d.side) return;
+    d.dev = 0; d.touched = true; delete d.frozen;
     syncPickUI(ev);
   }));
   root.querySelectorAll("[data-round]").forEach(btn => btn.addEventListener("click", () => {
