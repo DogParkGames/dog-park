@@ -146,7 +146,7 @@ footer{text-align:center; color:var(--mut); font-size:12.5px; margin-top:26px; l
       <ol class="rulelist">
         <li><b>Pick the winner and call the margin.</b> Your pick locks the moment the game starts.</li>
         <li><b>Scoring, the Direct Hit way:</b> call the exact margin for <b>100 points</b>. Every point you are off inside ten costs 10. Miss the winner or land outside ten and it scores 0. No negatives, ever.</li>
-        <li><b>One account per person.</b> Members verify with an email code, so the Park's numbers stay honest: no fake players, no spam, no stuffing the Yardstick.</li>
+        <li><b>One account per person.</b> Members verify with an email code, so the Park's numbers stay honest: no fake players, no spam, no stuffing the Yardstick. Your username becomes the name on your Score Card, and once it is verified it is yours alone, so nobody can be mistaken for you.</li>
         <li><b>Guests play free</b> on their own card. Guest picks stay on this device. Join the Park and your picks count in the Yardstick and the Park standings.</li>
         <li><b>Keep usernames clean.</b> The Park is for everybody.</li>
       </ol>
@@ -558,7 +558,7 @@ function myCard(){
   const per = {}; let tot = {points:0, picks:0, wins:0, winsPts:0, dh:0};
   for(const k of Object.keys(SPORTS)){ per[k] = sportStats(k);
     tot.points += per[k].points; tot.picks += per[k].picks; tot.wins += per[k].wins; tot.winsPts += per[k].winsPts; tot.dh += per[k].dh; }
-  return {name: save.name || "A Fan", per: per, tot: tot};
+  return {name: save.member ? save.member.username : (save.name || "A Fan"), per: per, tot: tot};
 }
 function rankTitle(points){
   if(points >= 6000) return "Yardstick Master";
@@ -618,7 +618,7 @@ function renderYard(){
   const keepMsg2 = keepMsg2El ? keepMsg2El.textContent : null;
   const card = myCard();
   let h = '<div class="card"><div class="rankline">MY SCORE CARD</div>' +
-    '<div style="margin:10px 0"><input type="text" id="fanName" placeholder="Your fan name" value="' + esc(save.name) + '"></div>' +
+    (save.member ? '<div class="joinline" style="margin:10px 0">Card name: <b>@' + esc(save.member.username) + '</b> · your verified Park name. It is yours alone, so no one can be mistaken for you.</div>' : '<div style="margin:10px 0"><input type="text" id="fanName" placeholder="Your fan name" value="' + esc(save.name) + '"></div>') +
     '<div class="rankline">Rank: ' + rankEmoji(card.tot.points) + ' <b>' + rankTitle(card.tot.points) + '</b> · ' + card.tot.points + ' total points · ' + card.tot.dh + ' Direct Hits</div></div>';
   h += '<div class="card"><table><tr><th>LEAGUE</th><th>POINTS</th><th>PICKS</th><th>WINS</th><th>WIN %</th><th>WINS W/ PTS %</th><th>DIRECT HITS</th></tr>';
   for(const k of Object.keys(SPORTS)){
@@ -658,7 +658,7 @@ function renderYard(){
   if(keepMsg2 && document.getElementById("joinMsg2")) document.getElementById("joinMsg2").textContent = keepMsg2;
   if(keep.joinUser) parkJoin.username = keep.joinUser;
   const nameInput = document.getElementById("fanName");
-  nameInput.addEventListener("change", () => { save.name = nameInput.value.trim(); store(); refresh(false); });
+  if(nameInput) nameInput.addEventListener("change", () => { save.name = nameInput.value.trim(); store(); refresh(false); });
   document.getElementById("shareBtn").addEventListener("click", () => {
     const c = myCard();
     const text = "🐾 DOG PARK · " + c.name + " · " + rankEmoji(c.tot.points) + " " + rankTitle(c.tot.points) + "\n" + c.tot.points + " points · " + c.tot.picks + " picks · " + pct(c.tot.wins, c.tot.picks) + "% winners · " + c.tot.dh + " Direct Hits · " + trophyCase().filter(x => x.got).length + " trophies 🏆\nPick the winner. Call the margin. Measure up: https://bizzybullets.github.io/dog-park/";
@@ -736,12 +736,13 @@ function parkLineHTML(ids){
 function memberCardHTML(){
   if(save.member){
     return '<div class="card"><div class="rankline">🌳 PARK MEMBER</div>' +
-      '<div class="joinline">You are <b>@' + esc(save.member.username) + '</b> · verified ✓ · your picks count in the Park Yardstick and standings.</div>' +
+      '<div class="joinline">You are <b>@' + esc(save.member.username) + '</b> · verified ✓ · this is the name on your Score Card and the Park Board, and nobody else can take it. Your picks count in the Park Yardstick and standings.</div>' +
       '<button class="btn ghost small" id="rulesBtn">PARK RULES</button></div>';
   }
   return '<div class="card"><div class="rankline">🌳 JOIN THE PARK</div>' +
-    '<div class="joinline">Member picks build the real Park Yardstick and the standings. One account per person, verified by an email code, so the numbers stay honest.</div>' +
+    '<div class="joinline">Member picks build the real Park Yardstick and the standings. One account per person, verified by an email code, so the numbers stay honest. <b>The username you pick becomes the name on your Score Card and the Park Board</b>, and once verified it is yours alone.</div>' +
     '<input type="text" id="joinUser" placeholder="Pick a username (3 to 16 letters, numbers, _)" maxlength="16" value="' + esc(save.joinDraft && save.joinDraft.user ? save.joinDraft.user : (save.joinPending ? save.joinPending.username : "")) + '">' +
+    '<div class="small" id="joinPreview" style="margin-top:6px;font-weight:800"></div>' +
     '<input type="text" id="joinEmail" placeholder="Your email, for the verification code" style="margin-top:8px" value="' + esc(save.joinDraft && save.joinDraft.email ? save.joinDraft.email : "") + '">' +
     '<label class="checkline"><input type="checkbox" id="joinOptIn"' + (save.joinDraft && save.joinDraft.optIn ? " checked" : "") + '> Email me the weekly Park standings and the week ahead</label>' +
     '<button class="btn" id="joinSend">EMAIL ME MY CODE</button> <span class="small" id="joinMsg"></span>' +
@@ -759,6 +760,10 @@ function wireMemberCard(){
   if(jeEl) jeEl.addEventListener("input", () => { jd().email = jeEl.value; store(); });
   if(jcEl) jcEl.addEventListener("input", () => { jd().code = jcEl.value; store(); });
   if(joEl) joEl.addEventListener("change", () => { jd().optIn = joEl.checked; store(); });
+  const jpEl = document.getElementById("joinPreview");
+  const updPreview = () => { if(jpEl){ const u = juEl ? juEl.value.trim() : ""; jpEl.textContent = u ? "Your Score Card will read: @" + u + " · once verified, that name is yours alone." : ""; } };
+  if(juEl) juEl.addEventListener("input", updPreview);
+  updPreview();
   const send = document.getElementById("joinSend");
   if(send) send.addEventListener("click", () => {
     const username = document.getElementById("joinUser").value.trim();
@@ -780,7 +785,7 @@ function wireMemberCard(){
     parkPost({action:"verify", username: vuser, code: code}).then(res => {
       if(res.ok && res.token){
         save.member = {username: vuser, token: res.token};
-        if(!save.name) save.name = vuser;
+        save.name = vuser;
         save.joinPending = null;
         save.joinDraft = null;
         save.welcomed = true; store();
