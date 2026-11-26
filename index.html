@@ -73,6 +73,8 @@ nav.sports button .dot{display:inline-block; width:8px; height:8px; border-radiu
 .leanbar{position:relative;height:9px;background:rgba(255,255,255,.09);border-radius:5px;flex:1}
 .leanbar .lzero{position:absolute;left:50%;top:-2px;width:2px;height:13px;background:var(--mut)}
 .leanbar .lfill{position:absolute;top:0;height:100%;border-radius:5px}
+.dual{flex:1;display:flex;flex-direction:column;gap:2px}
+.dfill{display:block;height:5px;border-radius:3px;min-width:2px}
 .pickrow{display:flex; gap:8px; justify-content:center; margin-top:8px}
 .pickrow button{padding:7px 12px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--mut); font-weight:800; font-size:12.5px; cursor:pointer}
 .pickrow button.danger{border-color:#6e3434; color:#ff9d9d}
@@ -140,8 +142,8 @@ footer{text-align:center; color:var(--mut); font-size:12.5px; margin-top:26px; l
 .rulelist li{margin:7px 0 7px 18px}
 .mrow{display:flex; gap:10px; margin-top:10px}
 .mrow .btn{flex:1; margin-top:0}
-.footlinks{text-align:center; margin-bottom:8px}
-.footlinks a{background:none; border:none; color:var(--gold); font-weight:900; letter-spacing:.1em; cursor:pointer; font-size:13px; padding:4px 10px; font-family:inherit; text-decoration:none; display:inline-block}
+.footlinks{display:grid; grid-template-columns:repeat(4, 1fr); max-width:560px; margin:0 auto 8px; text-align:center}
+.footlinks a{background:none; border:none; color:var(--gold); font-weight:900; letter-spacing:.08em; cursor:pointer; font-size:13px; padding:7px 2px; font-family:inherit; text-decoration:none; display:block}
 .linkrow{display:block; background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin:8px 0; color:var(--text); text-decoration:none; text-align:left}
 .linkrow b{color:var(--gold)}
 .linkrow .small{color:var(--mut)}
@@ -186,8 +188,7 @@ footer{text-align:center; color:var(--mut); font-size:12.5px; margin-top:26px; l
     </div>
   </div>
   <footer>
-    <div class="footlinks"><a href="https://dogparkgames.blogspot.com/p/sites.html" target="_blank" rel="noopener">SITES</a><a href="https://dogparkgames.blogspot.com/p/contact.html" target="_blank" rel="noopener">CONTACT</a><a href="https://dogparkgames.blogspot.com/p/support.html" target="_blank" rel="noopener">SUPPORT</a><a href="https://dogparkgames.blogspot.com/p/faq.html" target="_blank" rel="noopener">FAQ</a></div>
-    <div class="footlinks"><a href="https://dogparkgames.blogspot.com/p/rights-and-responsibilities.html" target="_blank" rel="noopener">RIGHTS</a><a href="https://dogparkgames.blogspot.com/p/privacy-policy.html" target="_blank" rel="noopener">PRIVACY</a><a href="https://dogparkgames.blogspot.com/p/information-we-collect.html" target="_blank" rel="noopener">DATA</a></div>
+    <div class="footlinks"><a href="https://dogparkgames.blogspot.com/p/sites.html" target="_blank" rel="noopener">SITES</a><a href="https://dogparkgames.blogspot.com/p/contact.html" target="_blank" rel="noopener">CONTACT</a><a href="https://dogparkgames.blogspot.com/p/support.html" target="_blank" rel="noopener">SUPPORT</a><a href="https://dogparkgames.blogspot.com/p/faq.html" target="_blank" rel="noopener">FAQ</a><a href="https://dogparkgames.blogspot.com/p/rights-and-responsibilities.html" target="_blank" rel="noopener">RIGHTS</a><a href="https://dogparkgames.blogspot.com/p/privacy-policy.html" target="_blank" rel="noopener">PRIVACY</a><a href="https://dogparkgames.blogspot.com/p/information-we-collect.html" target="_blank" rel="noopener">DATA</a><a href="https://dogparkgames.blogspot.com/" target="_blank" rel="noopener">BLOG</a></div>
     Dog Park, a revival of the classic pick'em yard, rebuilt for today's fan.<br>
     Free to play, bragging rights only. Scores and schedules update live from the ESPN feed.
   </footer>
@@ -929,6 +930,55 @@ function statBars(label, rows){
   }
   return h + '</div>';
 }
+function myGraphsHTML(){
+  const graded = Object.keys(save.picks).map(id => ({id: id, p: save.picks[id]}))
+    .filter(x => x.p.pts !== null && x.p.pts !== undefined)
+    .sort((a, b) => new Date(b.p.date) - new Date(a.p.date));
+  const anyPicks = Object.keys(save.picks).length > 0;
+  if(!anyPicks) return "";
+  let h = '<div class="card"><div class="rankline">📊 MY PREDICTION GRAPHS</div>';
+  const team = graded.filter(x => x.p.sport !== "UFC" && x.p.actualMargin !== null && x.p.actualMargin !== undefined).slice(0, 8);
+  if(team.length){
+    const mx = Math.max.apply(null, team.map(x => Math.max(x.p.margin, x.p.actualMargin)).concat([10]));
+    h += '<div class="small" style="font-weight:800;letter-spacing:.05em;margin-top:6px">MY CALL vs THE RESULT</div><div class="small mut"><span style="color:var(--green)">\u275a</span> my call <span style="color:var(--gold)">\u275a</span> the result</div>';
+    for(const x of team){
+      h += '<div class="gbar"><span class="glab">' + esc(x.p.awayAbbr + " at " + x.p.homeAbbr) + '</span><span class="dual"><span class="dfill" style="width:' + Math.round(100 * x.p.margin / mx) + '%;background:var(--green)"></span><span class="dfill" style="width:' + Math.round(100 * x.p.actualMargin / mx) + '%;background:var(--gold)"></span></span><span class="gval">' + x.p.pts + ' pts</span></div>';
+    }
+  }
+  const leans = [];
+  for(const x of graded){
+    if(x.p.sport === "UFC") continue;
+    const ev = findEvent(x.id);
+    if(!ev || !ev.yardstick) continue;
+    const sf = stickFor(ev, x.p.side);
+    const ref = sf > 0 ? sf : 1;
+    leans.push({label: x.p.awayAbbr + " at " + x.p.homeAbbr, eff: Math.round(10 * (x.p.margin - ref)) / 10});
+    if(leans.length >= 8) break;
+  }
+  if(leans.length){
+    h += '<div class="small" style="font-weight:800;letter-spacing:.05em;margin-top:8px">MY LEAN vs THE LINE</div><div class="small mut">under the line \u2190 \u00b7 \u2192 over the line</div>';
+    for(const L of leans){
+      const w = Math.min(50, Math.abs(L.eff) / 10 * 50);
+      const left = L.eff >= 0 ? 50 : 50 - w;
+      const col = L.eff >= 0 ? 'var(--green)' : 'var(--gold)';
+      h += '<div class="gbar"><span class="glab">' + esc(L.label) + '</span><span class="leanbar"><span class="lzero"></span><span class="lfill" style="left:' + left + '%;width:' + w + '%;background:' + col + '"></span></span><span class="gval">' + (L.eff > 0 ? '+' : '') + L.eff + '</span></div>';
+    }
+  }
+  const byWeek = {};
+  for(const x of graded) byWeek[x.p.week] = (byWeek[x.p.week] || 0) + x.p.pts;
+  const weeks = Object.keys(byWeek).sort();
+  if(weeks.length){
+    const mxw = Math.max.apply(null, weeks.map(w => byWeek[w]).concat([1]));
+    h += '<div class="small" style="font-weight:800;letter-spacing:.05em;margin-top:8px">MY POINTS BY WEEK</div>';
+    for(const w of weeks){
+      const lab = w.indexOf("-W") !== -1 ? "Week " + w.split("-W")[1] : w;
+      h += '<div class="gbar"><span class="glab">' + esc(lab) + '</span><span class="gtrack"><span class="gfill" style="width:' + Math.round(100 * byWeek[w] / mxw) + '%"></span></span><span class="gval">' + byWeek[w] + '</span></div>';
+    }
+  }
+  if(!team.length && !leans.length && !weeks.length) h += '<div class="small mut" style="margin-top:6px">Your graphs fill in as your picks grade: your call against the result, your lean against the line, and your points week by week.</div>';
+  h += '</div>';
+  return h;
+}
 function renderYard(){
   const v = document.getElementById("view");
   const keep = {};
@@ -945,6 +995,7 @@ function renderYard(){
     '<div class="rankline">Rank: ' + rankEmoji(card.tot.points) + ' <b>' + rankTitle(card.tot.points) + '</b> · ' + card.tot.points + ' total points · ' + card.tot.dh + ' Direct Hits</div></div>';
   h += lockedPicksHTML();
   h += parkMeterHTML();
+  h += myGraphsHTML();
   h += '<div class="card"><div class="tblwrap"><table><tr><th>LEAGUE</th><th>POINTS</th><th>PICKS</th><th>WINS</th><th>WIN %</th><th>PTS WIN %</th><th>DIRECT HITS</th></tr>';
   for(const k of Object.keys(SPORTS)){
     const s = card.per[k];
