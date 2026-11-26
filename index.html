@@ -8,9 +8,9 @@
 <meta property="og:title" content="Dog Park">
 <meta property="og:description" content="Pick the winner. Call the margin. Measure up against the Yardstick.">
 <meta property="og:type" content="website">
-<meta property="og:image" content="https://bizzybullets.github.io/dog-park/og-card.jpg">
+<meta property="og:image" content="https://dogparkgames.github.io/dog-park/og-card.jpg">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:image" content="https://bizzybullets.github.io/dog-park/og-card.jpg">
+<meta name="twitter:image" content="https://dogparkgames.github.io/dog-park/og-card.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Nunito:wght@400;700;800;900&display=swap" rel="stylesheet">
 <style>
@@ -161,7 +161,7 @@ footer{text-align:center; color:var(--mut); font-size:12.5px; margin-top:26px; l
     </div>
   </div>
   <footer>
-    Dog Park by BizzyBullets. A revival of the classic pick'em yard, rebuilt for today's fan.<br>
+    Dog Park, a revival of the classic pick'em yard, rebuilt for today's fan.<br>
     Free to play, bragging rights only. Scores and schedules update live from the ESPN feed.
   </footer>
 </div>
@@ -792,7 +792,7 @@ function renderYard(){
   });
   document.getElementById("shareBtn").addEventListener("click", () => {
     const c = myCard();
-    const text = "🐾 DOG PARK · " + c.name + " · " + rankEmoji(c.tot.points) + " " + rankTitle(c.tot.points) + "\n" + c.tot.points + " points · " + c.tot.picks + " picks · " + pct(c.tot.wins, c.tot.picks) + "% winners · " + c.tot.dh + " Direct Hits · " + trophyCase().filter(x => x.got).length + " trophies 🏆\nPick the winner. Call the margin. Measure up: https://bizzybullets.github.io/dog-park/";
+    const text = "🐾 DOG PARK · " + c.name + " · " + rankEmoji(c.tot.points) + " " + rankTitle(c.tot.points) + "\n" + c.tot.points + " points · " + c.tot.picks + " picks · " + pct(c.tot.wins, c.tot.picks) + "% winners · " + c.tot.dh + " Direct Hits · " + trophyCase().filter(x => x.got).length + " trophies 🏆\nPick the winner. Call the margin. Measure up: https://dogparkgames.github.io/dog-park/";
     const box = document.getElementById("shareBox"); box.style.display = "block"; box.textContent = text;
     if(navigator.share){ navigator.share({title:"Dog Park", text:text}).catch(() => {}); }
   });
@@ -1020,7 +1020,7 @@ function drawCardImage(){
       const a = document.createElement("a");
       a.href = url; a.download = "dog-park-dog-tag-card.png"; a.className = "btn ghost small"; a.style.marginTop = "8px"; a.textContent = "SAVE THE IMAGE";
       box.appendChild(a);
-      const text = "🐾 MY DOG TAG SCORE CARD · " + c.name + " · " + rankTitle(c.tot.points) + "\n" + c.tot.points + " points · " + c.tot.picks + " picks · " + pct(c.tot.wins, c.tot.picks) + "% winners · " + c.tot.dh + " Direct Hits · " + tcount + " trophies\nPick the winner. Call the margin. Measure up: https://bizzybullets.github.io/dog-park/";
+      const text = "🐾 MY DOG TAG SCORE CARD · " + c.name + " · " + rankTitle(c.tot.points) + "\n" + c.tot.points + " points · " + c.tot.picks + " picks · " + pct(c.tot.wins, c.tot.picks) + "% winners · " + c.tot.dh + " Direct Hits · " + tcount + " trophies\nPick the winner. Call the margin. Measure up: https://dogparkgames.github.io/dog-park/";
       if(navigator.canShare && navigator.canShare({files: [file]})){
         navigator.share({files: [file], title: "Dog Park Dog Tag Score Card", text: text}).catch(() => {});
       }
