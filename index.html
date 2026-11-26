@@ -474,7 +474,7 @@ function renderSport(sport){
   if(!f){ v.innerHTML = '<div class="card">Loading the ' + SPORTS[sport].label + ' games...</div>'; return; }
   if(f.error && !f.events.length){ v.innerHTML = '<div class="err">The score feed did not answer. Your picks are safe.<br><button class="btn small" onclick="refresh(true)">Try again</button></div>'; return; }
   if(!f.events.length){ v.innerHTML = '<div class="card">No games on the board right now for ' + SPORTS[sport].label + '. Check back on game day.</div>'; return; }
-  const sorted = f.events.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+  const sorted = sport === "UFC" ? f.events.slice() : f.events.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
   let cardsHtml = "";
   if(sport === "UFC"){
     let lastTitle = null;
