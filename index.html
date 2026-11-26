@@ -142,7 +142,7 @@ footer{text-align:center; color:var(--mut); font-size:12.5px; margin-top:26px; l
 .rulelist li{margin:7px 0 7px 18px}
 .mrow{display:flex; gap:10px; margin-top:10px}
 .mrow .btn{flex:1; margin-top:0}
-.footlinks{display:grid; grid-template-columns:repeat(4, 1fr); max-width:560px; margin:0 auto 8px; text-align:center}
+.footlinks{display:grid; grid-template-columns:repeat(3, 1fr); max-width:520px; margin:0 auto 8px; text-align:center}
 .footlinks a{background:none; border:none; color:var(--gold); font-weight:900; letter-spacing:.08em; cursor:pointer; font-size:13px; padding:7px 2px; font-family:inherit; text-decoration:none; display:block}
 .linkrow{display:block; background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin:8px 0; color:var(--text); text-decoration:none; text-align:left}
 .linkrow b{color:var(--gold)}
@@ -188,7 +188,7 @@ footer{text-align:center; color:var(--mut); font-size:12.5px; margin-top:26px; l
     </div>
   </div>
   <footer>
-    <div class="footlinks"><a href="https://dogparkgames.blogspot.com/p/sites.html" target="_blank" rel="noopener">SITES</a><a href="https://dogparkgames.blogspot.com/p/contact.html" target="_blank" rel="noopener">CONTACT</a><a href="https://dogparkgames.blogspot.com/p/support.html" target="_blank" rel="noopener">SUPPORT</a><a href="https://dogparkgames.blogspot.com/p/faq.html" target="_blank" rel="noopener">FAQ</a><a href="https://dogparkgames.blogspot.com/p/rights-and-responsibilities.html" target="_blank" rel="noopener">RIGHTS</a><a href="https://dogparkgames.blogspot.com/p/privacy-policy.html" target="_blank" rel="noopener">PRIVACY</a><a href="https://dogparkgames.blogspot.com/p/information-we-collect.html" target="_blank" rel="noopener">DATA</a><a href="https://dogparkgames.blogspot.com/" target="_blank" rel="noopener">BLOG</a></div>
+    <div class="footlinks"><a href="https://dogparkgames.blogspot.com/p/sites.html" target="_blank" rel="noopener">SITES</a><a href="https://dogparkgames.blogspot.com/p/contact.html" target="_blank" rel="noopener">CONTACT</a><a href="https://dogparkgames.blogspot.com/p/support.html" target="_blank" rel="noopener">SUPPORT</a><a href="https://dogparkgames.blogspot.com/p/supporters.html" target="_blank" rel="noopener">SUPPORTERS</a><a href="https://dogparkgames.blogspot.com/p/faq.html" target="_blank" rel="noopener">FAQ</a><a href="https://dogparkgames.blogspot.com/p/rights-and-responsibilities.html" target="_blank" rel="noopener">RIGHTS</a><a href="https://dogparkgames.blogspot.com/p/privacy-policy.html" target="_blank" rel="noopener">PRIVACY</a><a href="https://dogparkgames.blogspot.com/p/information-we-collect.html" target="_blank" rel="noopener">DATA</a><a href="https://dogparkgames.blogspot.com/" target="_blank" rel="noopener">BLOG</a></div>
     Dog Park, a revival of the classic pick'em yard, rebuilt for today's fan.<br>
     Free to play, bragging rights only. Scores and schedules update live from the ESPN feed.
   </footer>
@@ -1149,12 +1149,13 @@ function validParkCode(code){
   return A.charAt(sum % A.length) === chk;
 }
 function supporterCardHTML(){
-  if(save.supporter) return '<div class="card"><div class="rankline">🐾 SUPPORTER PASS</div><div class="joinline" style="margin-top:6px"><b style="color:var(--gold)">Park Supporter</b> · thanks for backing the Park. Your gold name and paw badge are on.</div></div>';
+  const more = '<div class="small" style="margin-top:10px">More ways to back the Park: <a href="https://buy.stripe.com/8x28wQdskbste0a5wNbQY06" target="_blank" rel="noopener" style="color:var(--gold)">Supporter Fund $10</a> · <a href="https://buy.stripe.com/8x2eVegEwbst5tEbVbbQY07" target="_blank" rel="noopener" style="color:var(--gold)">$15</a> · <a href="https://buy.stripe.com/aFaaEYcogeEF3lw6ARbQY08" target="_blank" rel="noopener" style="color:var(--gold)">$20</a> · <a href="https://dogparkgames.blogspot.com/p/supporters.html" target="_blank" rel="noopener" style="color:var(--gold)">the Wall of Fame</a><br>Custom amount: email strongmindgrow@gmail.com and we will send a checkout link.</div>';
+  if(save.supporter) return '<div class="card"><div class="rankline">🐾 SUPPORTER PASS</div><div class="joinline" style="margin-top:6px"><b style="color:var(--gold)">Park Supporter</b> · thanks for backing the Park. Your gold name and paw badge are on.</div>' + more + '</div>';
   return '<div class="card"><div class="rankline">🐾 SUPPORTER PASS</div>' +
     '<div class="joinline" style="margin-top:6px">Back the Park for <b>$5, one time</b>: a gold name and paw badge on your Score Card and the Park Board, plus the Supporter trophy. The game stays free for everyone, always.</div>' +
     '<a class="btn" href="https://buy.stripe.com/28E14ofAs9kl9JUe3jbQY05" target="_blank" rel="noopener" style="text-decoration:none; display:inline-block">GET THE PASS</a>' +
     '<div style="margin-top:12px"><input type="text" id="passCode" placeholder="Pass code from your email (PARK-XXXXXX)" maxlength="11"></div>' +
-    '<button class="btn ghost small" id="passBtn">REDEEM MY CODE</button> <span class="small" id="passMsg"></span></div>';
+    '<button class="btn ghost small" id="passBtn">REDEEM MY CODE</button> <span class="small" id="passMsg"></span>' + more + '</div>';
 }
 function wireMemberCard(){
   const rb = document.getElementById("rulesBtn");
