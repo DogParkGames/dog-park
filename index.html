@@ -8,6 +8,9 @@
 <meta property="og:title" content="Dog Park">
 <meta property="og:description" content="Pick the winner. Call the margin. Measure up against the Yardstick.">
 <meta property="og:type" content="website">
+<meta property="og:image" content="https://bizzybullets.github.io/dog-park/og-card.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://bizzybullets.github.io/dog-park/og-card.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Nunito:wght@400;700;800;900&display=swap" rel="stylesheet">
 <style>
@@ -179,7 +182,7 @@ let refreshTimer = null;
 
 function loadSave(){
   try{ const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if(s && s.picks) return s; }catch(e){}
-  return {name:"", picks:{}, board:[], welcomed:false, member:null, joinPending:null};
+  return {name:"", picks:{}, board:[], welcomed:false, member:null, joinPending:null, joinDraft:null};
 }
 function store(){ localStorage.setItem(SAVE_KEY, JSON.stringify(save)); }
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
@@ -322,16 +325,17 @@ function gameCard(ev){
   else meta = fmtTime(ev.date) + (ev.yardstick ? ' · <span class="mut">The Yardstick (the line): ' + esc(ev.oddsDetails) + '</span>' : '');
   let body = "";
   if(!started){
-    if(!drafts[ev.id]) drafts[ev.id] = pick ? {side: pick.side, margin: pick.margin, touched: false} : {side: null, margin: Math.min(7, SPORTS[ev.sport].max), touched: false};
+    if(!drafts[ev.id]) drafts[ev.id] = pick ? {side: pick.side, dev: devFromMargin(ev, pick), touched: false} : {side: null, dev: 0, touched: false};
     const d = drafts[ev.id];
     body = '<div class="pickbox">' +
       '<div class="pickbtns">' +
         '<button data-pick="' + ev.id + '" data-side="away" class="' + (d.side === "away" ? "on" : "") + '">' + esc(ev.away.abbr) + ' wins</button>' +
         '<button data-pick="' + ev.id + '" data-side="home" class="' + (d.side === "home" ? "on" : "") + '">' + esc(ev.home.abbr) + ' wins</button>' +
       '</div>' +
-      '<div class="marginrow"><span class="small mut" style="font-weight:900">BY</span>' +
-        '<input type="range" min="1" max="' + SPORTS[ev.sport].max + '" value="' + d.margin + '" data-margin="' + ev.id + '">' +
-        '<span class="marginval" id="mv-' + ev.id + '">' + d.margin + '</span></div>' +
+      '<div class="marginrow"><span class="small mut" style="font-weight:900">CALL</span>' +
+        '<input type="range" min="-' + SPORTS[ev.sport].max + '" max="' + SPORTS[ev.sport].max + '" value="' + d.dev + '" data-margin="' + ev.id + '">' +
+        '<span class="marginval" id="mv-' + ev.id + '">' + (d.dev > 0 ? "+" : "") + d.dev + '</span></div>' +
+      '<div class="small mut" style="text-align:center">0 = right on the Yardstick · slide right to beat the stick, left to keep it closer than the stick</div>' +
       '<div class="pickread" id="pr-' + ev.id + '">' + pickReadHTML(ev, d) + '</div>' +
       '<div style="text-align:center"><button class="btn" data-confirm="' + ev.id + '" id="cf-' + ev.id + '" style="display:' + (confirmVisible(ev, d) ? 'inline-block' : 'none') + '">' + (pick ? 'UPDATE MY PICK' : 'LOCK IT IN') + '</button></div>' +
       '<div class="pickrow"><button data-clear="' + ev.id + '" id="cl-' + ev.id + '">Clear my choices</button>' +
@@ -388,20 +392,46 @@ function renderLive(){
   wirePickControls(v); wireInfo(v);
 }
 let drafts = {};
+function stickSigned(ev){
+  const pg = parkData[ev.id];
+  if(pg && pg.ysReady) return pg.ysSigned;
+  if(ev.yardstick) return ev.yardstick.side === "home" ? ev.yardstick.margin : -ev.yardstick.margin;
+  return 0;
+}
+function stickFor(ev, side){
+  const s = stickSigned(ev);
+  return side === "home" ? s : -s;
+}
+function devFromMargin(ev, pick){
+  return pick.margin - Math.round(stickFor(ev, pick.side));
+}
+function draftMargin(ev, d){
+  if(!d.side) return null;
+  const m = Math.round(stickFor(ev, d.side)) + d.dev;
+  return Math.max(1, Math.min(SPORTS[ev.sport].max, m));
+}
+function devText(ev, d){
+  const m = draftMargin(ev, d); if(m === null) return "";
+  const eff = m - stickFor(ev, d.side);
+  const a = Math.abs(eff); const as = (Math.round(a * 10) / 10).toString();
+  if(eff === 0) return "right on the Yardstick";
+  return eff > 0 ? "+" + as + " over the Yardstick" : as + " under the Yardstick";
+}
 function pickReadHTML(ev, d){
   const saved = save.picks[ev.id];
   if(!d.side){
-    if(d.touched) return 'Margin set to <b>' + d.margin + '</b>. Tap your winner above, study the matchup all you want, then lock it in.';
-    return 'Tap your winner, slide the margin, then lock it in. Nothing counts until you do.';
+    if(d.touched) return 'Call set to <b>' + (d.dev > 0 ? "+" : "") + d.dev + ' off the Yardstick</b>. Tap your winner above, study the matchup all you want, then lock it in.';
+    return 'Tap your winner, slide your call off the Yardstick, then lock it in. Nothing counts until you do.';
   }
-  const call = esc(d.side === "home" ? ev.home.abbr : ev.away.abbr) + ' to win by ' + d.margin;
-  if(saved && saved.side === d.side && saved.margin === d.margin) return 'Your pick: <b>' + call + '</b><span class="saved">saved</span>';
-  return 'Your call: <b>' + call + '</b>' + (saved ? ' · tap UPDATE MY PICK to change your saved pick.' : ' · tap LOCK IT IN to make it count.');
+  const m = draftMargin(ev, d);
+  const call = esc(d.side === "home" ? ev.home.abbr : ev.away.abbr) + ' to win by ' + m;
+  if(saved && saved.side === d.side && saved.margin === m) return 'Your pick: <b>' + call + '</b> · ' + devText(ev, d) + '<span class="saved">saved</span>';
+  return 'Your call: <b>' + call + '</b> · ' + devText(ev, d) + (saved ? ' · tap UPDATE MY PICK to change your saved pick.' : ' · tap LOCK IT IN to make it count.');
 }
 function confirmVisible(ev, d){
   if(!d.side) return false;
   const saved = save.picks[ev.id];
-  return !(saved && saved.side === d.side && saved.margin === d.margin);
+  return !(saved && saved.side === d.side && saved.margin === draftMargin(ev, d));
 }
 let removeArm = {};
 function syncPickUI(ev){
@@ -410,35 +440,35 @@ function syncPickUI(ev){
   const cf = document.getElementById("cf-" + ev.id);
   if(cf){ cf.style.display = confirmVisible(ev, d) ? "inline-block" : "none"; cf.textContent = save.picks[ev.id] ? "UPDATE MY PICK" : "LOCK IT IN"; }
   document.querySelectorAll('[data-pick="' + ev.id + '"]').forEach(b => b.classList.toggle("on", b.dataset.side === d.side));
-  const mv = document.getElementById("mv-" + ev.id); if(mv) mv.textContent = d.margin;
-  const sl = document.querySelector('[data-margin="' + ev.id + '"]'); if(sl && parseInt(sl.value, 10) !== d.margin) sl.value = d.margin;
+  const mv = document.getElementById("mv-" + ev.id); if(mv) mv.textContent = (d.dev > 0 ? "+" : "") + d.dev;
+  const sl = document.querySelector('[data-margin="' + ev.id + '"]'); if(sl && parseInt(sl.value, 10) !== d.dev) sl.value = d.dev;
   const rm = document.getElementById("rm-" + ev.id);
   if(rm) rm.textContent = removeArm[ev.id] ? "Tap again to remove it for good" : "Remove my pick";
 }
 function wirePickControls(root){
   root.querySelectorAll("[data-pick]").forEach(btn => btn.addEventListener("click", () => {
     const ev = findEvent(btn.dataset.pick); if(!ev) return;
-    const d = drafts[ev.id] || (drafts[ev.id] = {side: null, margin: Math.min(7, SPORTS[ev.sport].max), touched: false});
+    const d = drafts[ev.id] || (drafts[ev.id] = {side: null, dev: 0, touched: false});
     d.side = btn.dataset.side;
     syncPickUI(ev);
   }));
   root.querySelectorAll("[data-margin]").forEach(sl => sl.addEventListener("input", () => {
     const ev = findEvent(sl.dataset.margin); if(!ev) return;
-    const d = drafts[ev.id] || (drafts[ev.id] = {side: null, margin: parseInt(sl.value, 10), touched: true});
-    d.margin = parseInt(sl.value, 10); d.touched = true;
+    const d = drafts[ev.id] || (drafts[ev.id] = {side: null, dev: parseInt(sl.value, 10), touched: true});
+    d.dev = parseInt(sl.value, 10); d.touched = true;
     syncPickUI(ev);
   }));
   root.querySelectorAll("[data-confirm]").forEach(btn => btn.addEventListener("click", () => {
     const ev = findEvent(btn.dataset.confirm); if(!ev) return;
     const d = drafts[ev.id]; if(!d || !d.side) return;
-    savePick(ev, d.side, d.margin);
+    savePick(ev, d.side, draftMargin(ev, d));
     removeArm[ev.id] = false;
     refresh(false);
   }));
   root.querySelectorAll("[data-clear]").forEach(btn => btn.addEventListener("click", () => {
     const ev = findEvent(btn.dataset.clear); if(!ev) return;
     const saved = save.picks[ev.id];
-    drafts[ev.id] = saved ? {side: saved.side, margin: saved.margin, touched: false} : {side: null, margin: Math.min(7, SPORTS[ev.sport].max), touched: false};
+    drafts[ev.id] = saved ? {side: saved.side, dev: devFromMargin(ev, saved), touched: false} : {side: null, dev: 0, touched: false};
     removeArm[ev.id] = false;
     syncPickUI(ev);
   }));
@@ -611,7 +641,7 @@ function renderYard(){
   board.forEach((c, i) => { const medal = i === 0 ? "🏆" : i === 1 ? "🥈" : i === 2 ? "🥉" : String(i + 1);
     h += '<tr><td>' + medal + '</td><td>' + esc(c.name) + (c.name === card.name ? " (you)" : "") + '</td><td>' + rankEmoji(c.tot.points) + ' ' + rankTitle(c.tot.points) + '</td><td>' + c.tot.points + '</td><td>' + c.tot.picks + '</td><td>' + pct(c.tot.wins, c.tot.picks) + '%</td><td>' + c.tot.dh + '</td></tr>'; });
   h += '</table><div class="small mut" style="margin-top:8px">Trade season codes with friends: their card joins your board, yours joins theirs. The weekly leaderboard lives on Facebook, cards posted every Monday.</div>' +
-    '<button class="btn" id="shareBtn">SHARE MY CARD</button> <button class="btn ghost" id="copyBtn">COPY MY SEASON CODE</button>' +
+    '<button class="btn" id="shareBtn">SHARE MY CARD</button> <button class="btn ghost" id="copyBtn">COPY MY SEASON CODE</button> <button class="btn ghost" id="cardImgBtn">CARD IMAGE FOR FACEBOOK</button>' +
     '<div class="sharebox" id="shareBox"></div>' +
     '<div style="margin-top:14px"><input type="text" id="importBox" placeholder="Paste a friend\'s DP- season code"></div>' +
     '<button class="btn ghost small" id="importBtn">ADD TO THE BOARD</button> <span class="small" id="importMsg"></span></div>';
@@ -640,6 +670,7 @@ function renderYard(){
     const box = document.getElementById("shareBox"); box.style.display = "block"; box.textContent = code;
     if(navigator.clipboard) navigator.clipboard.writeText(code).catch(() => {});
   });
+  document.getElementById("cardImgBtn").addEventListener("click", () => { drawCardImage(); });
   document.getElementById("importBtn").addEventListener("click", () => {
     const msg = document.getElementById("importMsg");
     const raw = document.getElementById("importBox").value.trim();
@@ -710,11 +741,11 @@ function memberCardHTML(){
   }
   return '<div class="card"><div class="rankline">🌳 JOIN THE PARK</div>' +
     '<div class="joinline">Member picks build the real Park Yardstick and the standings. One account per person, verified by an email code, so the numbers stay honest.</div>' +
-    '<input type="text" id="joinUser" placeholder="Pick a username (3 to 16 letters, numbers, _)" maxlength="16" value="' + esc(save.joinPending ? save.joinPending.username : "") + '">' +
-    '<input type="text" id="joinEmail" placeholder="Your email, for the verification code" style="margin-top:8px">' +
-    '<label class="checkline"><input type="checkbox" id="joinOptIn"> Email me the weekly Park standings and the week ahead</label>' +
+    '<input type="text" id="joinUser" placeholder="Pick a username (3 to 16 letters, numbers, _)" maxlength="16" value="' + esc(save.joinDraft && save.joinDraft.user ? save.joinDraft.user : (save.joinPending ? save.joinPending.username : "")) + '">' +
+    '<input type="text" id="joinEmail" placeholder="Your email, for the verification code" style="margin-top:8px" value="' + esc(save.joinDraft && save.joinDraft.email ? save.joinDraft.email : "") + '">' +
+    '<label class="checkline"><input type="checkbox" id="joinOptIn"' + (save.joinDraft && save.joinDraft.optIn ? " checked" : "") + '> Email me the weekly Park standings and the week ahead</label>' +
     '<button class="btn" id="joinSend">EMAIL ME MY CODE</button> <span class="small" id="joinMsg"></span>' +
-    '<div id="joinStep2" style="display:' + (save.joinPending ? "block" : "none") + ';margin-top:12px"><input type="text" id="joinCode" placeholder="6 digit code from your email" maxlength="6">' +
+    '<div id="joinStep2" style="display:' + (save.joinPending || (save.joinDraft && save.joinDraft.step2) ? "block" : "none") + ';margin-top:12px"><input type="text" id="joinCode" placeholder="6 digit code from your email" maxlength="6" value="' + esc(save.joinDraft && save.joinDraft.code ? save.joinDraft.code : "") + '">' +
     '<button class="btn" id="joinVerify">VERIFY MY ACCOUNT</button> <span class="small" id="joinMsg2"></span></div>' +
     '<div style="margin-top:10px"><button class="btn ghost small" id="rulesBtn">PARK RULES</button></div></div>';
 }
@@ -722,6 +753,12 @@ function wireMemberCard(){
   const rb = document.getElementById("rulesBtn");
   if(rb) rb.addEventListener("click", () => showWelcome());
   if(save.member || !PARK_API) return;
+  const jd = () => { if(!save.joinDraft) save.joinDraft = {user:"", email:"", code:"", optIn:false, step2:false}; return save.joinDraft; };
+  const juEl = document.getElementById("joinUser"), jeEl = document.getElementById("joinEmail"), jcEl = document.getElementById("joinCode"), joEl = document.getElementById("joinOptIn");
+  if(juEl) juEl.addEventListener("input", () => { jd().user = juEl.value; store(); });
+  if(jeEl) jeEl.addEventListener("input", () => { jd().email = jeEl.value; store(); });
+  if(jcEl) jcEl.addEventListener("input", () => { jd().code = jcEl.value; store(); });
+  if(joEl) joEl.addEventListener("change", () => { jd().optIn = joEl.checked; store(); });
   const send = document.getElementById("joinSend");
   if(send) send.addEventListener("click", () => {
     const username = document.getElementById("joinUser").value.trim();
@@ -730,7 +767,7 @@ function wireMemberCard(){
     const msg = document.getElementById("joinMsg");
     msg.textContent = "Sending...";
     parkPost({action:"register", username: username, email: email, optIn: optIn}).then(res => {
-      if(res.ok){ parkJoin = {sentTo: email, username: username}; save.joinPending = {username: username}; store(); document.getElementById("joinStep2").style.display = "block"; msg.textContent = "Code sent. Check your email, it is good for 15 minutes."; }
+      if(res.ok){ parkJoin = {sentTo: email, username: username}; save.joinPending = {username: username}; const d3 = jd(); d3.user = username; d3.email = email; d3.optIn = optIn; d3.step2 = true; store(); document.getElementById("joinStep2").style.display = "block"; msg.textContent = "Code sent. Check your email, it is good for 15 minutes."; }
       else msg.textContent = res.why || "That did not go through.";
     });
   });
@@ -745,6 +782,7 @@ function wireMemberCard(){
         save.member = {username: vuser, token: res.token};
         if(!save.name) save.name = vuser;
         save.joinPending = null;
+        save.joinDraft = null;
         save.welcomed = true; store();
         for(const id of Object.keys(save.picks)){ const p = save.picks[id]; if(p.pts === null || p.pts === undefined){ const ev = findEvent(id); if(ev && ev.state === "pre") parkPostPick(ev); } }
         refresh(false);
@@ -763,6 +801,62 @@ function wireWelcome(){
   const guest = document.getElementById("guestBtn");
   if(join) join.addEventListener("click", () => { hideWelcome(); view = "YARD"; refresh(true); });
   if(guest) guest.addEventListener("click", () => { save.welcomed = true; store(); hideWelcome(); });
+}
+function drawCardImage(){
+  const c = myCard();
+  const tcount = trophyCase().filter(x => x.got).length;
+  const cv = document.createElement("canvas"); cv.width = 1000; cv.height = 560;
+  const x = cv.getContext("2d");
+  const g = x.createLinearGradient(0, 0, 0, 560); g.addColorStop(0, "#232833"); g.addColorStop(1, "#14171c");
+  x.fillStyle = g; x.fillRect(0, 0, 1000, 560);
+  x.strokeStyle = "#2fbf71"; x.lineWidth = 6; x.strokeRect(10, 10, 980, 540);
+  x.fillStyle = "#f2c14e";
+  x.beginPath(); x.ellipse(906, 96, 44, 32, 0, 0, Math.PI * 2); x.fill();
+  [[862, 44, 15, 21], [890, 30, 16, 23], [920, 30, 16, 23], [948, 44, 15, 21]].forEach(t => { x.beginPath(); x.ellipse(t[0], t[1], t[2], t[3], 0, 0, Math.PI * 2); x.fill(); });
+  x.fillStyle = "#f2f4f6"; x.font = "700 62px Oswald, sans-serif"; x.textAlign = "left";
+  x.fillText("DOG PARK", 48, 100);
+  x.fillStyle = "#9aa6b5"; x.font = "800 21px Nunito, sans-serif";
+  x.fillText("M Y   S C O R E   C A R D", 50, 138);
+  x.fillStyle = "#f2c14e"; x.font = "700 52px Oswald, sans-serif";
+  x.fillText(String(c.name).slice(0, 24), 48, 208);
+  x.fillStyle = "#f2f4f6"; x.font = "800 29px Nunito, sans-serif";
+  x.fillText(rankTitle(c.tot.points) + "  ·  " + c.tot.points + " total points", 50, 252);
+  const stats = [["POINTS", c.tot.points], ["PICKS", c.tot.picks], ["WIN %", pct(c.tot.wins, c.tot.picks) + "%"], ["DIRECT HITS", c.tot.dh]];
+  stats.forEach((s, i) => {
+    const bx = 48 + i * 228;
+    x.fillStyle = "#12151a"; x.fillRect(bx, 286, 212, 108);
+    x.strokeStyle = "#313947"; x.lineWidth = 2; x.strokeRect(bx, 286, 212, 108);
+    x.fillStyle = "#9aa6b5"; x.font = "800 19px Nunito, sans-serif"; x.fillText(s[0], bx + 18, 322);
+    x.fillStyle = "#f2f4f6"; x.font = "700 46px Oswald, sans-serif"; x.fillText(String(s[1]), bx + 18, 374);
+  });
+  x.fillStyle = "#f2f4f6"; x.font = "800 26px Nunito, sans-serif";
+  x.fillText("Trophies: " + tcount + " of 9 earned", 50, 448);
+  x.fillStyle = "#1d7a47"; x.fillRect(10, 486, 980, 64);
+  x.fillStyle = "#eafff3"; x.font = "900 25px Nunito, sans-serif"; x.textAlign = "center";
+  x.fillText("Pick the winner. Call the margin. Measure up.", 500, 527);
+  x.textAlign = "left";
+  const box = document.getElementById("shareBox");
+  box.style.display = "block"; box.textContent = "Making your card image...";
+  cv.toBlob(blob => {
+    if(!blob){ box.textContent = "The image did not render on this device. The season code still works."; return; }
+    const url = URL.createObjectURL(blob);
+    const file = new File([blob], "dog-park-score-card.png", {type: "image/png"});
+    box.textContent = "";
+    const img = document.createElement("img");
+    img.src = url; img.style.width = "100%"; img.style.borderRadius = "8px"; img.alt = "My Dog Park score card";
+    box.appendChild(img);
+    const note = document.createElement("div");
+    note.className = "small"; note.style.marginTop = "8px";
+    note.textContent = "That is your Score Card as a picture, the kind Facebook shows properly. Share it, or save it and post it.";
+    box.appendChild(note);
+    const a = document.createElement("a");
+    a.href = url; a.download = "dog-park-score-card.png"; a.className = "btn ghost small"; a.style.marginTop = "8px"; a.textContent = "SAVE THE IMAGE";
+    box.appendChild(a);
+    const text = "🐾 DOG PARK · " + c.name + " · " + rankTitle(c.tot.points) + "\n" + c.tot.points + " points · " + c.tot.picks + " picks · " + pct(c.tot.wins, c.tot.picks) + "% winners · " + c.tot.dh + " Direct Hits · " + tcount + " trophies\nPick the winner. Call the margin. Measure up: https://bizzybullets.github.io/dog-park/";
+    if(navigator.canShare && navigator.canShare({files: [file]})){
+      navigator.share({files: [file], title: "Dog Park", text: text}).catch(() => {});
+    }
+  }, "image/png");
 }
 function seasonCode(){
   const c = myCard();
