@@ -515,7 +515,11 @@ function gameCard(ev){
         '<br><span class="mut">Result:</span> ' + esc(pick.finalScore || "") +
         '<span class="pts' + (pick.dh ? " dh" : "") + '">' + (pick.dh ? "🏆 DIRECT HIT · " : "") + pick.pts + ' PTS</span></div>';
     } else {
-      body = '<div class="result">You called ' + esc(pick.side === "home" ? ev.home.abbr : ev.away.abbr) + ' by ' + pick.margin + ' · Actual margin ' + pick.actualMargin +
+      let ws = pick.winnerSide;
+      if(!ws && ev.home.score !== null && ev.away.score !== null && ev.home.score !== ev.away.score) ws = ev.home.score > ev.away.score ? "home" : "away";
+      const wAbbr = ws === "home" ? ev.home.abbr : (ws === "away" ? ev.away.abbr : "");
+      const actTxt = wAbbr ? ("Actual: " + esc(wAbbr) + " by " + pick.actualMargin) : ("Actual margin " + pick.actualMargin + " · tie game");
+      body = '<div class="result">You called ' + esc(pick.side === "home" ? ev.home.abbr : ev.away.abbr) + ' by ' + pick.margin + ' · ' + actTxt +
         '<span class="pts' + (pick.dh ? " dh" : "") + '">' + (pick.dh ? "🏆 DIRECT HIT · " : "") + pick.pts + ' PTS</span></div>' + marginBars(pick, ev);
     }
   } else if(fin && pick){
