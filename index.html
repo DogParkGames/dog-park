@@ -111,6 +111,19 @@ input[type=text]{width:100%; padding:11px; border-radius:10px; border:2px solid 
 .err{background:#3a1d1d; border:1px solid #6e3434; color:#ffb3b3; border-radius:12px; padding:14px; text-align:center; font-weight:800}
 footer{text-align:center; color:var(--mut); font-size:12.5px; margin-top:26px; line-height:1.6}
 .sharebox{white-space:pre-wrap; background:#12151a; border:1px solid var(--line); border-radius:10px; padding:12px; font-size:13.5px; margin-top:10px; display:none}
+.modal{position:fixed; inset:0; background:rgba(6,8,11,.82); z-index:60; display:flex; align-items:flex-start; justify-content:center; overflow-y:auto; padding:22px 12px}
+.modalbox{background:linear-gradient(180deg,var(--panel2),var(--panel)); border:1px solid var(--line); border-radius:18px; max-width:520px; width:100%; padding:22px 20px; text-align:center}
+.modalbox .logo{font-size:40px}
+.parksub{color:var(--mut); font-weight:800; margin-top:6px}
+.parksub b{color:var(--gold)}
+.parksub .you{color:var(--blue); font-weight:900}
+.joinline{font-size:13.5px; font-weight:700; margin:2px 0 8px}
+.rulelist{text-align:left; margin:14px 0; line-height:1.55; font-size:14.5px; font-weight:600}
+.rulelist li{margin:7px 0 7px 18px}
+.mrow{display:flex; gap:10px; margin-top:10px}
+.mrow .btn{flex:1; margin-top:0}
+.checkline{display:flex; gap:8px; align-items:flex-start; text-align:left; font-size:13.5px; font-weight:700; margin-top:10px}
+.checkline input{margin-top:3px}
 @media (max-width:560px){ .team .abbr{font-size:21px} .center{min-width:64px} .center .ys{font-size:19px} }
 </style>
 </head>
@@ -123,6 +136,24 @@ footer{text-align:center; color:var(--mut); font-size:12.5px; margin-top:26px; l
   <nav class="sports" id="sportNav"></nav>
   <div class="updated" id="updatedLine">Loading games...</div>
   <main id="view"></main>
+  <div class="modal" id="welcomeModal" style="display:none">
+    <div class="modalbox">
+      <div class="logo">DOG <span class="y">PARK</span></div>
+      <div class="parksub">Pick the winner. Call the margin. <b>Measure up.</b></div>
+      <ol class="rulelist">
+        <li><b>Pick the winner and call the margin.</b> Your pick locks the moment the game starts.</li>
+        <li><b>Scoring, the Direct Hit way:</b> call the exact margin for <b>100 points</b>. Every point you are off inside ten costs 10. Miss the winner or land outside ten and it scores 0. No negatives, ever.</li>
+        <li><b>One account per person.</b> Members verify with an email code, so the Park's numbers stay honest: no fake players, no spam, no stuffing the Yardstick.</li>
+        <li><b>Guests play free</b> on their own card. Guest picks stay on this device. Join the Park and your picks count in the Yardstick and the Park standings.</li>
+        <li><b>Keep usernames clean.</b> The Park is for everybody.</li>
+      </ol>
+      <div class="mrow">
+        <button class="btn" id="joinBtn">JOIN THE PARK</button>
+        <button class="btn ghost" id="guestBtn">PLAY AS GUEST</button>
+      </div>
+      <div class="small mut" style="margin-top:10px">Free to play, bragging rights only.</div>
+    </div>
+  </div>
   <footer>
     Dog Park by BizzyBullets. A revival of the classic pick'em yard, rebuilt for today's fan.<br>
     Free to play, bragging rights only. Scores and schedules update live from the ESPN feed.
@@ -139,6 +170,7 @@ const SPORTS = {
   NHL:  {label:"NHL", path:"hockey/nhl", max:8}
 };
 const API = "https://site.api.espn.com/apis/site/v2/sports/";
+const PARK_API = "https://script.google.com/macros/s/AKfycbw_zZVUnWKSGJUOT_vqODqUc_Fu9M_BaSxX7HkWM-tSxpdWBqCWtwYqNoavn56UK4eSlg/exec";
 const SAVE_KEY = "fySaveV1";
 let save = loadSave();
 let view = "NFL"; // sport key, "LIVE", or "YARD"
@@ -147,7 +179,7 @@ let refreshTimer = null;
 
 function loadSave(){
   try{ const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if(s && s.picks) return s; }catch(e){}
-  return {name:"", picks:{}, board:[]};
+  return {name:"", picks:{}, board:[], welcomed:false, member:null};
 }
 function store(){ localStorage.setItem(SAVE_KEY, JSON.stringify(save)); }
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
@@ -238,12 +270,15 @@ function fmtTime(iso){
 }
 function yardstickRuler(ev){
   const max = ev.sport === "NHL" ? 6 : 28;
-  const v = ev.yardstick ? (ev.yardstick.side === "home" ? ev.yardstick.margin : -ev.yardstick.margin) : 0;
+  const pg = parkData[ev.id];
+  const usePark = !!(pg && pg.ysReady);
+  const v = usePark ? pg.ysSigned : (ev.yardstick ? (ev.yardstick.side === "home" ? ev.yardstick.margin : -ev.yardstick.margin) : 0);
   const clamped = Math.max(-max, Math.min(max, v));
   const pos = 50 + (clamped / max) * 50;
-  const label = ev.yardstick ? (v === 0 ? "dead even" : (v > 0 ? ev.home.abbr + " by " + Math.abs(v) : ev.away.abbr + " by " + Math.abs(v))) : "no line posted, stick at 0";
-  return '<div class="ysruler"><div class="ysends"><span>' + esc(ev.away.abbr) + '</span><span class="ysmid">YARDSTICK ' + (v > 0 ? "+" : "") + v + ' · ' + label + '</span><span>' + esc(ev.home.abbr) + '</span></div>' +
-    '<div class="ystrack"><div class="yszero"></div><div class="ysmark" style="left:' + pos + '%"></div></div></div>';
+  const label = usePark ? pg.ysText : (ev.yardstick ? (v === 0 ? "dead even" : (v > 0 ? ev.home.abbr + " by " + Math.abs(v) : ev.away.abbr + " by " + Math.abs(v))) : "no line posted, stick at 0");
+  return '<div class="ysruler"><div class="ysends"><span>' + esc(ev.away.abbr) + '</span><span class="ysmid">' + (usePark ? "PARK YARDSTICK " : "YARDSTICK ") + (v > 0 ? "+" : "") + v + ' \u00b7 ' + label + '</span><span>' + esc(ev.home.abbr) + '</span></div>' +
+    '<div class="ystrack"><div class="yszero"></div><div class="ysmark" style="left:' + pos + '%"></div></div></div>' +
+    (usePark ? '<div class="joinline" style="text-align:center;margin-top:6px"><span class="you" style="color:var(--blue);font-weight:900">THE PARK</span> <span class="mut">is picking</span> <b>' + pg.homePct + '% ' + esc(ev.home.abbr) + ' \u00b7 ' + pg.awayPct + '% ' + esc(ev.away.abbr) + '</b> <span class="mut">(' + pg.n + ' picks)</span></div>' : '');
 }
 function marginBars(pick, ev){
   const rows = [];
@@ -256,11 +291,14 @@ function marginBars(pick, ev){
       Math.round(100 * val / max) + '%;background:' + color + '"></span></span><span class="v">' + val + '</span></div>';
   }
   rows.push(row("YOUR CALL", pick.margin, "var(--green)"));
-  if(ys !== null) rows.push(row("YARDSTICK", ys, "var(--blue)"));
+  const pg = parkData[ev.id];
+  if(pg && pg.ysReady) rows.push(row("PARK YARDSTICK", Math.abs(pg.ysSigned), "var(--gold)"));
+  else if(ys !== null) rows.push(row("YARDSTICK", ys, "var(--blue)"));
   rows.push(row("ACTUAL", act, "var(--gold)"));
   return '<div class="bars">' + rows.join("") + '</div>';
 }
 function gameCard(ev){
+  const parkGame = parkData[ev.id];
   const pick = save.picks[ev.id];
   const started = ev.state !== "pre";
   const live = ev.state === "in";
@@ -268,6 +306,9 @@ function gameCard(ev){
   let center;
   if(fin || live){
     center = '<div class="ys">' + (ev.away.score ?? "-") + " · " + (ev.home.score ?? "-") + '</div><div class="yslab">' + (fin ? "FINAL" : "LIVE") + '</div>';
+  } else if(parkGame && parkGame.ysReady){
+    const sv = parkGame.ysSigned;
+    center = '<div class="ys">' + (sv > 0 ? "+" : "") + sv + '</div><div class="yslab">PARK YARDSTICK</div><div class="yslab" style="letter-spacing:.5px;text-transform:none">' + parkGame.ysText + '</div>';
   } else if(ev.yardstick){
     const sv = ev.yardstick.side === "home" ? ev.yardstick.margin : -ev.yardstick.margin;
     const fav = ev.yardstick.side === "home" ? ev.home : ev.away;
@@ -335,7 +376,7 @@ function renderSport(sport){
   if(f.error && !f.events.length){ v.innerHTML = '<div class="err">The score feed did not answer. Your picks are safe.<br><button class="btn small" onclick="refresh(true)">Try again</button></div>'; return; }
   if(!f.events.length){ v.innerHTML = '<div class="card">No games on the board right now for ' + SPORTS[sport].label + '. Check back on game day.</div>'; return; }
   const sorted = f.events.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
-  v.innerHTML = sorted.map(gameCard).join("");
+  v.innerHTML = parkLineHTML(sorted.map(e => e.id)) + sorted.map(gameCard).join("");
   wirePickControls(v); wireInfo(v);
 }
 function renderLive(){
@@ -343,7 +384,7 @@ function renderLive(){
   let live = [];
   for(const k of Object.keys(SPORTS)){ for(const ev of (feed[k] || {}).events || []) if(ev.state === "in") live.push(ev); }
   if(!live.length){ v.innerHTML = '<div class="card" style="text-align:center"><b>No games are live this minute.</b><br><span class="mut">When a game tips off, kicks off or drops the puck, it shows up here with the score and clock, refreshing on its own.</span></div>'; return; }
-  v.innerHTML = '<h2 class="sec">LIVE SCORING WATCH</h2>' + live.map(gameCard).join("");
+  v.innerHTML = '<h2 class="sec">LIVE SCORING WATCH</h2>' + parkLineHTML(live.map(e => e.id)) + live.map(gameCard).join("");
   wirePickControls(v); wireInfo(v);
 }
 let drafts = {};
@@ -405,6 +446,7 @@ function wirePickControls(root){
     const ev = findEvent(btn.dataset.remove); if(!ev) return;
     if(!removeArm[ev.id]){ removeArm[ev.id] = true; syncPickUI(ev); return; }
     delete save.picks[ev.id]; store();
+    parkRemovePick(ev);
     delete drafts[ev.id]; removeArm[ev.id] = false;
     refresh(false);
   }));
@@ -467,6 +509,7 @@ function savePick(ev, side, margin){
     pts: null, dh: false
   };
   store();
+  parkPostPick(ev);
 }
 
 function sportStats(sport){
@@ -568,7 +611,9 @@ function renderYard(){
     'Pick the winner and call the margin. Beat the number, bank the points: an exact margin is a <b style="color:var(--gold)">Direct Hit, 100 points</b>. ' +
     'Every point you are off inside ten costs 10: off by 1 scores 90, off by 2 scores 80, and so on. Miss the winner, or land outside ten, and the game scores 0. No negatives, ever. ' +
     'The Yardstick is the posted line for the game, the market\'s collective call on the margin, shown so you can measure your call against the crowd\'s number.</div></div>';
+  h += memberCardHTML();
   v.innerHTML = h;
+  wireMemberCard();
   const nameInput = document.getElementById("fanName");
   nameInput.addEventListener("change", () => { save.name = nameInput.value.trim(); store(); refresh(false); });
   document.getElementById("shareBtn").addEventListener("click", () => {
@@ -593,6 +638,117 @@ function renderYard(){
     }catch(e){ msg.textContent = "That code did not read. Check it and try again."; }
   });
 }
+let parkData = {};
+let parkJoin = {sentTo:"", username:""};
+function parkLineData(ev){
+  if(ev.yardstick) return {signed:(ev.yardstick.side === "home" ? ev.yardstick.margin : -ev.yardstick.margin)};
+  return {signed:0};
+}
+function parkCompute(ev, agg){
+  const line = parkLineData(ev);
+  const devSum = agg.homeSum + agg.homeN * line.signed + agg.awaySum - agg.awayN * line.signed;
+  const n = agg.homeN + agg.awayN;
+  const ysSigned = n ? Math.round(10 * devSum / n) / 10 : 0;
+  const favAbbr = ysSigned === 0 ? null : (ysSigned > 0 ? ev.home.abbr : ev.away.abbr);
+  return {n:n, homeN:agg.homeN, awayN:agg.awayN, homePct: agg.homePct, awayPct: agg.awayPct,
+    ysSigned: ysSigned, ysReady: n >= 3,
+    ysText: ysSigned === 0 ? "dead even" : favAbbr + " by " + Math.abs(ysSigned)};
+}
+async function fetchPark(ids){
+  if(!PARK_API || !ids.length) return;
+  try{
+    const r = await fetch(PARK_API + "?ids=" + encodeURIComponent(ids.join(",")));
+    const data = await r.json();
+    if(data && data.ok && data.games){
+      for(const id of Object.keys(data.games)){
+        const ev = findEvent(id); if(!ev) continue;
+        parkData[id] = parkCompute(ev, data.games[id]);
+      }
+    }
+  }catch(e){}
+}
+function parkPost(payload){
+  if(!PARK_API) return Promise.resolve({ok:false, why:"The Park Brain is not connected yet."});
+  return fetch(PARK_API, {method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body: JSON.stringify(payload)})
+    .then(r => r.json()).catch(() => ({ok:false, why:"The Park did not answer. Try again in a bit."}));
+}
+function parkPostPick(ev){
+  if(!save.member) return;
+  const p = save.picks[ev.id]; if(!p) return;
+  parkPost({username: save.member.username, token: save.member.token, gameId: ev.id, sport: ev.sport, side: p.side, margin: p.margin, gameStart: ev.date});
+}
+function parkRemovePick(ev){
+  if(!save.member) return;
+  const past = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+  parkPost({username: save.member.username, token: save.member.token, gameId: ev.id, sport: ev.sport, side: "home", margin: 60, gameStart: past});
+}
+function parkLineHTML(ids){
+  if(!PARK_API) return "";
+  let n = 0, games = 0;
+  for(const id of ids){ const pg = parkData[id]; if(pg && pg.n){ n += pg.n; games++; } }
+  if(!games) return '<div class="card joinline" style="text-align:center">🌳 <b>The Park Brain is live.</b> <span class="mut">No member picks on this board yet. Members set the Park Yardstick.</span></div>';
+  return '<div class="card joinline" style="text-align:center">🌳 <b>The Park Brain:</b> ' + n + ' member pick' + (n === 1 ? "" : "s") + ' across ' + games + ' game' + (games === 1 ? "" : "s") + ' on this board.</div>';
+}
+function memberCardHTML(){
+  if(save.member){
+    return '<div class="card"><div class="rankline">🌳 PARK MEMBER</div>' +
+      '<div class="joinline">You are <b>@' + esc(save.member.username) + '</b> · verified ✓ · your picks count in the Park Yardstick and standings.</div>' +
+      '<button class="btn ghost small" id="rulesBtn">PARK RULES</button></div>';
+  }
+  return '<div class="card"><div class="rankline">🌳 JOIN THE PARK</div>' +
+    '<div class="joinline">Member picks build the real Park Yardstick and the standings. One account per person, verified by an email code, so the numbers stay honest.</div>' +
+    '<input type="text" id="joinUser" placeholder="Pick a username (3 to 16 letters, numbers, _)" maxlength="16">' +
+    '<input type="text" id="joinEmail" placeholder="Your email, for the verification code" style="margin-top:8px">' +
+    '<label class="checkline"><input type="checkbox" id="joinOptIn"> Email me the weekly Park standings and the week ahead</label>' +
+    '<button class="btn" id="joinSend">EMAIL ME MY CODE</button> <span class="small" id="joinMsg"></span>' +
+    '<div id="joinStep2" style="display:none;margin-top:12px"><input type="text" id="joinCode" placeholder="6 digit code from your email" maxlength="6">' +
+    '<button class="btn" id="joinVerify">VERIFY MY ACCOUNT</button> <span class="small" id="joinMsg2"></span></div>' +
+    '<div style="margin-top:10px"><button class="btn ghost small" id="rulesBtn">PARK RULES</button></div></div>';
+}
+function wireMemberCard(){
+  const rb = document.getElementById("rulesBtn");
+  if(rb) rb.addEventListener("click", () => showWelcome());
+  if(save.member || !PARK_API) return;
+  const send = document.getElementById("joinSend");
+  if(send) send.addEventListener("click", () => {
+    const username = document.getElementById("joinUser").value.trim();
+    const email = document.getElementById("joinEmail").value.trim();
+    const optIn = document.getElementById("joinOptIn").checked;
+    const msg = document.getElementById("joinMsg");
+    msg.textContent = "Sending...";
+    parkPost({action:"register", username: username, email: email, optIn: optIn}).then(res => {
+      if(res.ok){ parkJoin = {sentTo: email, username: username}; document.getElementById("joinStep2").style.display = "block"; msg.textContent = "Code sent. Check your email, it is good for 15 minutes."; }
+      else msg.textContent = res.why || "That did not go through.";
+    });
+  });
+  const ver = document.getElementById("joinVerify");
+  if(ver) ver.addEventListener("click", () => {
+    const code = document.getElementById("joinCode").value.trim();
+    const msg2 = document.getElementById("joinMsg2");
+    msg2.textContent = "Checking...";
+    parkPost({action:"verify", username: parkJoin.username, code: code}).then(res => {
+      if(res.ok && res.token){
+        save.member = {username: parkJoin.username, token: res.token};
+        if(!save.name) save.name = parkJoin.username;
+        save.welcomed = true; store();
+        for(const id of Object.keys(save.picks)){ const p = save.picks[id]; if(p.pts === null || p.pts === undefined){ const ev = findEvent(id); if(ev && ev.state === "pre") parkPostPick(ev); } }
+        refresh(false);
+      } else msg2.textContent = res.why || "That code did not check out.";
+    });
+  });
+}
+function showWelcome(){
+  const m = document.getElementById("welcomeModal"); if(m) m.style.display = "flex";
+}
+function hideWelcome(){
+  const m = document.getElementById("welcomeModal"); if(m) m.style.display = "none";
+}
+function wireWelcome(){
+  const join = document.getElementById("joinBtn");
+  const guest = document.getElementById("guestBtn");
+  if(join) join.addEventListener("click", () => { hideWelcome(); view = "YARD"; refresh(true); });
+  if(guest) guest.addEventListener("click", () => { save.welcomed = true; store(); hideWelcome(); });
+}
 function seasonCode(){
   const c = myCard();
   return "DP-" + btoa(JSON.stringify(c));
@@ -606,6 +762,10 @@ function render(){
 async function refresh(rerender){
   if(view === "LIVE"){ await Promise.all(Object.keys(SPORTS).map(fetchSport)); }
   else if(view !== "YARD"){ await fetchSport(view); }
+  let ids = [];
+  if(view === "LIVE"){ for(const k of Object.keys(SPORTS)) for(const ev of (feed[k] || {}).events || []) if(ev.state === "in") ids.push(ev.id); }
+  else if(view !== "YARD"){ ids = ((feed[view] || {}).events || []).map(e => e.id); }
+  if(ids.length) await fetchPark(ids);
   render();
 }
 function scheduleAuto(){
@@ -618,6 +778,8 @@ function scheduleAuto(){
 }
 refresh(true);
 scheduleAuto();
+wireWelcome();
+if(!save.member && !save.welcomed) showWelcome();
 </script>
 </body>
 </html>
