@@ -817,8 +817,9 @@ function renderYard(){
   h += '<div class="card"><div class="rankline">THE PARK BOARD</div><table><tr><th>RANK</th><th>FAN</th><th>TITLE</th><th>POINTS</th><th>PICKS</th><th>WIN %</th><th>DIRECT HITS</th></tr>';
   board.forEach((c, i) => { const medal = i === 0 ? "🏆" : i === 1 ? "🥈" : i === 2 ? "🥉" : String(i + 1);
     h += '<tr><td>' + medal + '</td><td>' + esc(c.name) + (c.sup ? ' <span style="color:var(--gold)">🐾</span>' : '') + (c.name === card.name ? " (you)" : "") + '</td><td>' + rankEmoji(c.tot.points) + ' ' + rankTitle(c.tot.points) + '</td><td>' + c.tot.points + '</td><td>' + c.tot.picks + '</td><td>' + pct(c.tot.wins, c.tot.picks) + '%</td><td>' + c.tot.dh + '</td></tr>'; });
-  h += '</table><div class="small mut" style="margin-top:8px">Trade season codes with friends: their card joins your board, yours joins theirs. The weekly leaderboard lives on Facebook, cards posted every Monday.</div>' +
-    '<button class="btn" id="shareBtn">SHARE MY CARD</button> <button class="btn ghost" id="copyBtn">COPY MY SEASON CODE</button> <button class="btn ghost" id="cardImgBtn">SHARE MY DOG TAG CARD</button>' +
+  if(save.invitedBy) h += '<div class="card"><div class="joinline">🐾 You came in on <b>' + esc(save.invitedBy) + '</b>\'s invite, so their card is already on your Park Board below. Make your picks, then send your own invite link and grow your board.</div></div>';
+  h += '</table><div class="small mut" style="margin-top:8px">Send your invite link: one tap puts your card on a friend\'s Park Board and brings them into the game. Season codes still work too. The weekly leaderboard lives on Facebook, cards posted every Monday.</div>' +
+    '<button class="btn" id="inviteBtn">INVITE A PLAYER</button> <button class="btn ghost" id="shareBtn">SHARE MY CARD</button> <button class="btn ghost" id="cardImgBtn">DOG TAG CARD IMAGE</button> <button class="btn ghost" id="copyBtn">COPY MY SEASON CODE</button>' +
     '<div class="sharebox" id="shareBox"></div>' +
     '<div style="margin-top:14px"><input type="text" id="importBox" placeholder="Paste a friend\'s DP- season code"></div>' +
     '<button class="btn ghost small" id="importBtn">ADD TO THE BOARD</button> <span class="small" id="importMsg"></span></div>';
@@ -846,7 +847,7 @@ function renderYard(){
   });
   document.getElementById("shareBtn").addEventListener("click", () => {
     const c = myCard();
-    const text = "🐾 DOG PARK · " + c.name + " · " + rankEmoji(c.tot.points) + " " + rankTitle(c.tot.points) + "\n" + c.tot.points + " points · " + c.tot.picks + " picks · " + pct(c.tot.wins, c.tot.picks) + "% winners · " + c.tot.dh + " Direct Hits · " + trophyCase().filter(x => x.got).length + " trophies 🏆\nPick the winner. Call the margin. Measure up: https://dogparkgames.github.io/dog-park/";
+    const text = "🐾 DOG PARK · " + c.name + " · " + rankEmoji(c.tot.points) + " " + rankTitle(c.tot.points) + "\n" + c.tot.points + " points · " + c.tot.picks + " picks · " + pct(c.tot.wins, c.tot.picks) + "% winners · " + c.tot.dh + " Direct Hits · " + trophyCase().filter(x => x.got).length + " trophies 🏆\nPick the winner. Call the margin. Measure up.\n\nPlay free and put my card on your Park Board with my invite link:\n" + inviteLink();
     const box = document.getElementById("shareBox"); box.style.display = "block"; box.textContent = text;
     if(navigator.share){ navigator.share({title:"Dog Park", text:text}).catch(() => {}); }
   });
@@ -855,12 +856,18 @@ function renderYard(){
     const box = document.getElementById("shareBox"); box.style.display = "block"; box.textContent = code;
     if(navigator.clipboard) navigator.clipboard.writeText(code).catch(() => {});
   });
+  document.getElementById("inviteBtn").addEventListener("click", () => {
+    const text = inviteText();
+    const box = document.getElementById("shareBox"); box.style.display = "block"; box.textContent = text;
+    if(navigator.share){ navigator.share({title: "Dog Park invite", text: text}).catch(() => {}); }
+    else if(navigator.clipboard){ navigator.clipboard.writeText(text).catch(() => {}); }
+  });
   document.getElementById("cardImgBtn").addEventListener("click", () => { drawCardImage(); });
   document.getElementById("importBtn").addEventListener("click", () => {
     const msg = document.getElementById("importMsg");
     const raw = document.getElementById("importBox").value.trim();
     try{
-      const c = JSON.parse(atob(raw.replace(/^(FY|DP)-/, "")));
+      const c = decodeCardCode(raw);
       if(!c || !c.tot || typeof c.tot.points !== "number" || !c.name) throw new Error("bad");
       save.board = (save.board || []).filter(b => b.name !== c.name);
       save.board.push(c); store(); msg.textContent = "Added " + c.name + "."; refresh(false);
@@ -1041,7 +1048,8 @@ function drawCardImage(){
   const go = () => { if(started) return; started = true; paint(logo.complete && logo.naturalWidth ? logo : null); };
   logo.onload = go; logo.onerror = go;
   logo.src = "dog-park-logo.png";
-  setTimeout(go, 1200);
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(() => setTimeout(go, 60));
+  setTimeout(go, 1500);
   function rr(x, a, b, w, h, r){
     x.beginPath();
     x.moveTo(a + r, b);
@@ -1084,7 +1092,7 @@ function drawCardImage(){
     x.fillStyle = "#f2f4f6"; x.font = "800 28px Nunito, sans-serif";
     x.fillText(rankTitle(c.tot.points) + "  ·  " + c.tot.points + " total points", 50, 330);
     x.fillStyle = "#f2c14e"; x.font = "800 24px Nunito, sans-serif"; x.textAlign = "right";
-    x.fillText("Trophies: " + tcount + " of 9", 950, 330);
+    x.fillText("Trophies: " + tcount + " of " + trophyCase().length, 950, 330);
     x.textAlign = "left";
     const stats = [["POINTS", c.tot.points], ["PICKS", c.tot.picks], ["WIN %", pct(c.tot.wins, c.tot.picks) + "%"], ["DIRECT HITS", c.tot.dh]];
     stats.forEach((s, i) => {
@@ -1095,8 +1103,10 @@ function drawCardImage(){
       x.fillStyle = "#f2f4f6"; x.font = "700 44px Oswald, sans-serif"; x.fillText(String(s[1]), bx + 18, 434);
     });
     x.fillStyle = "#1d7a47"; x.fillRect(18, 478, 964, 64);
-    x.fillStyle = "#eafff3"; x.font = "900 24px Nunito, sans-serif"; x.textAlign = "center";
-    x.fillText("Pick the winner. Call the margin. Measure up.", 500, 519);
+    x.fillStyle = "#eafff3"; x.font = "900 23px Nunito, sans-serif"; x.textAlign = "center";
+    x.fillText("Pick the winner. Call the margin. Measure up.", 500, 512);
+    x.fillStyle = "#bff0d4"; x.font = "800 19px Nunito, sans-serif";
+    x.fillText("Play free: dogparkgames.github.io/dog-park", 500, 536);
     x.textAlign = "left";
     cv.toBlob(blob => {
       if(!blob){ box.textContent = "The image did not render on this device. The season code still works."; return; }
@@ -1108,12 +1118,12 @@ function drawCardImage(){
       box.appendChild(img);
       const note = document.createElement("div");
       note.className = "small"; note.style.marginTop = "8px";
-      note.textContent = "That is your Dog Tag Score Card, the picture made for Facebook posts. Post it with your season code so friends can pull your card onto their Park Board.";
+      note.textContent = "That is your Dog Tag Score Card, made for Facebook posts. Post it with your invite text (tap INVITE A PLAYER and copy it) so friends reach the game and your card in one tap.";
       box.appendChild(note);
       const a = document.createElement("a");
       a.href = url; a.download = "dog-park-dog-tag-card.png"; a.className = "btn ghost small"; a.style.marginTop = "8px"; a.textContent = "SAVE THE IMAGE";
       box.appendChild(a);
-      const text = "🐾 MY DOG TAG SCORE CARD · " + c.name + " · " + rankTitle(c.tot.points) + "\n" + c.tot.points + " points · " + c.tot.picks + " picks · " + pct(c.tot.wins, c.tot.picks) + "% winners · " + c.tot.dh + " Direct Hits · " + tcount + " trophies\nPick the winner. Call the margin. Measure up: https://dogparkgames.github.io/dog-park/";
+      const text = "🐾 MY DOG TAG SCORE CARD · " + c.name + " · " + rankTitle(c.tot.points) + "\n" + c.tot.points + " points · " + c.tot.picks + " picks · " + pct(c.tot.wins, c.tot.picks) + "% winners · " + c.tot.dh + " Direct Hits · " + tcount + " trophies\nPick the winner. Call the margin. Measure up.\n\nPlay free and put my card on your Park Board with my invite link:\n" + inviteLink();
       if(navigator.canShare && navigator.canShare({files: [file]})){
         navigator.share({files: [file], title: "Dog Park Dog Tag Score Card", text: text}).catch(() => {});
       }
@@ -1122,7 +1132,32 @@ function drawCardImage(){
 }
 function seasonCode(){
   const c = myCard();
-  return "DP-" + btoa(JSON.stringify(c));
+  return "DP-" + btoa(unescape(encodeURIComponent(JSON.stringify(c))));
+}
+function decodeCardCode(raw){
+  const b = String(raw || "").trim().replace(/^(FY|DP)-/, "");
+  try{ return JSON.parse(decodeURIComponent(escape(atob(b)))); }catch(e){ return JSON.parse(atob(b)); }
+}
+function inviteLink(){
+  return "https://dogparkgames.github.io/dog-park/?invite=" + encodeURIComponent(seasonCode());
+}
+function inviteText(){
+  const c = myCard();
+  return "🐾 " + c.name + " is calling you out at DOG PARK, the free sports pick'em game.\nPick the winner. Call the margin. Measure up.\n\nOpen my invite link and my Dog Tag card lands on your Park Board:\n" + inviteLink() + "\n\nStamp your dog tag, make your picks, then send me your invite back.";
+}
+function checkInviteLink(){
+  try{
+    const inv = new URLSearchParams(location.search).get("invite");
+    if(!inv) return;
+    const c = decodeCardCode(inv);
+    if(!c || !c.tot || typeof c.tot.points !== "number" || !c.name) return;
+    if(c.name === myCard().name) return;
+    save.board = (save.board || []).filter(b => b.name !== c.name);
+    save.board.push(c);
+    save.invitedBy = c.name;
+    store();
+    history.replaceState(null, "", location.pathname);
+  }catch(e){}
 }
 function render(){
   renderNav(); setUpdated();
@@ -1148,6 +1183,7 @@ function scheduleAuto(){
     if(view === "LIVE" || anyLive) refresh(false);
   }, 45000);
 }
+checkInviteLink();
 refresh(true);
 scheduleAuto();
 wireWelcome();
