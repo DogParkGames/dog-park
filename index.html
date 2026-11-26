@@ -681,7 +681,7 @@ function myCard(){
   const per = {}; let tot = {points:0, picks:0, wins:0, winsPts:0, dh:0};
   for(const k of Object.keys(SPORTS)){ per[k] = sportStats(k);
     tot.points += per[k].points; tot.picks += per[k].picks; tot.wins += per[k].wins; tot.winsPts += per[k].winsPts; tot.dh += per[k].dh; }
-  return {name: save.member ? save.member.username : (save.name || "A Fan"), per: per, tot: tot};
+  return {name: save.member ? "@" + save.member.username : (save.name || "A Fan"), per: per, tot: tot};
 }
 function rankTitle(points){
   if(points >= 6000) return "Yardstick Master";
