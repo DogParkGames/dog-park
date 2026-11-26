@@ -61,6 +61,7 @@ nav.sports button .dot{display:inline-block; width:8px; height:8px; border-radiu
 .ystrack{position:relative; height:10px; background:linear-gradient(90deg, rgba(87,168,255,.28), #12151a 50%, rgba(47,191,113,.28)); border:1px solid var(--line); border-radius:6px; margin-top:4px}
 .yszero{position:absolute; left:50%; top:-2px; width:2px; height:14px; background:var(--ink)}
 .ysmark{position:absolute; top:-4px; width:5px; height:18px; background:var(--gold); border-radius:2px; transform:translateX(-50%)}
+.ysmark.park{background:var(--green); width:7px; height:22px; top:-6px; border:1px solid #0b0e12; z-index:2}
 .pickrow{display:flex; gap:8px; justify-content:center; margin-top:8px}
 .pickrow button{padding:7px 12px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--mut); font-weight:800; font-size:12.5px; cursor:pointer}
 .pickrow button.danger{border-color:#6e3434; color:#ff9d9d}
@@ -382,14 +383,31 @@ function fmtTime(iso){
 function yardstickRuler(ev){
   const max = ev.sport === "NHL" ? 6 : 28;
   const pg = parkData[ev.id];
-  const usePark = !!(pg && pg.ysReady);
-  const v = usePark ? pg.ysSigned : (ev.yardstick ? (ev.yardstick.side === "home" ? ev.yardstick.margin : -ev.yardstick.margin) : 0);
-  const clamped = Math.max(-max, Math.min(max, v));
-  const pos = 50 + (clamped / max) * 50;
-  const label = usePark ? pg.ysText : (ev.yardstick ? (v === 0 ? "dead even" : (v > 0 ? ev.home.abbr + " by " + Math.abs(v) : ev.away.abbr + " by " + Math.abs(v))) : "no line posted, stick at 0");
-  return '<div class="ysruler"><div class="ysends"><span>' + esc(ev.away.abbr) + '</span><span class="ysmid">' + (usePark ? "PARK YARDSTICK " : "YARDSTICK ") + (v > 0 ? "+" : "") + v + ' \u00b7 ' + label + '</span><span>' + esc(ev.home.abbr) + '</span></div>' +
-    '<div class="ystrack"><div class="yszero"></div><div class="ysmark" style="left:' + pos + '%"></div></div></div>' +
-    (usePark ? '<div class="joinline" style="text-align:center;margin-top:6px"><span class="you" style="color:var(--blue);font-weight:900">THE PARK</span> <span class="mut">is picking</span> <b>' + pg.homePct + '% ' + esc(ev.home.abbr) + ' \u00b7 ' + pg.awayPct + '% ' + esc(ev.away.abbr) + '</b> <span class="mut">(' + pg.n + ' picks)</span></div>' : '');
+  const lineSigned = ev.yardstick ? (ev.yardstick.side === "home" ? ev.yardstick.margin : -ev.yardstick.margin) : null;
+  const lineText = ev.yardstick ? (lineSigned === 0 ? "dead even" : (lineSigned > 0 ? ev.home.abbr + " by " + Math.abs(lineSigned) : ev.away.abbr + " by " + Math.abs(lineSigned))) : null;
+  const pos = x => 50 + (Math.max(-max, Math.min(max, x)) / max) * 50;
+  let marks = "";
+  if(lineSigned !== null) marks += '<div class="ysmark" style="left:' + pos(lineSigned) + '%"></div>';
+  if(pg && pg.n >= 1) marks += '<div class="ysmark park" style="left:' + pos(pg.ysSigned) + '%"></div>';
+  if(lineSigned === null && !(pg && pg.n >= 1)) marks += '<div class="ysmark" style="left:50%"></div>';
+  const head = [];
+  if(lineText) head.push("LINE " + (lineSigned > 0 ? "+" : "") + lineSigned + " \u00b7 " + lineText);
+  if(pg && pg.n >= 1) head.push("PARK " + (pg.ysSigned > 0 ? "+" : "") + pg.ysSigned + " \u00b7 " + pg.ysText);
+  if(!head.length) head.push("YARDSTICK 0 \u00b7 no line posted, stick at 0");
+  let parkRow = "";
+  if(pg && pg.n >= 1){
+    let verdict = "";
+    if(lineSigned !== null){
+      const diff = Math.round(10 * (Math.abs(pg.ysSigned) - Math.abs(lineSigned))) / 10;
+      if(diff > 0.24) verdict = " \u00b7 Park runs " + Math.abs(diff) + " pts wider than the line";
+      else if(diff < -0.24) verdict = " \u00b7 Park runs " + Math.abs(diff) + " pts tighter than the line";
+      else verdict = " \u00b7 Park is right on the line";
+    }
+    parkRow = '<div class="joinline" style="text-align:center;margin-top:6px"><span class="you" style="color:var(--blue);font-weight:900">THE PARK</span> <span class="mut">is picking</span> <b>' + pg.homePct + '% ' + esc(ev.home.abbr) + ' \u00b7 ' + pg.awayPct + '% ' + esc(ev.away.abbr) + '</b> <span class="mut">(' + pg.n + ' picks)</span><span class="mut">' + verdict + '</span></div>';
+  }
+  return '<div class="ysruler"><div class="ysends"><span>' + esc(ev.away.abbr) + '</span><span class="ysmid">' + head.join("  \u00b7  ") + '</span><span>' + esc(ev.home.abbr) + '</span></div>' +
+    '<div class="ystrack"><div class="yszero"></div>' + marks + '</div>' +
+    ((lineSigned !== null || (pg && pg.n >= 1)) ? '<div class="small mut" style="text-align:center;margin-top:3px"><span style="color:var(--gold)">\u275a</span> the line <span style="color:var(--green)">\u275a</span> the Park</div>' : '') + '</div>' + parkRow;
 }
 function marginBars(pick, ev){
   const rows = [];
@@ -526,12 +544,64 @@ function renderSport(sport){
   v.innerHTML = parkLineHTML(sorted.map(e => e.id)) + cardsHtml;
   wirePickControls(v); wireInfo(v);
 }
+function parkMeterHTML(){
+  let totalPicks = 0, covered = 0, board = 0;
+  let diffs = [], consensus = null, recW = 0, recL = 0, misses = [];
+  const perSport = {};
+  for(const k of Object.keys(SPORTS)){
+    for(const ev of (feed[k] || {}).events || []){
+      board++;
+      const pg = parkData[ev.id];
+      if(!pg || !pg.n) continue;
+      covered++; totalPicks += pg.n;
+      perSport[k] = (perSport[k] || 0) + pg.n;
+      if(ev.sport !== "UFC" && ev.yardstick){
+        const ls = ev.yardstick.side === "home" ? ev.yardstick.margin : -ev.yardstick.margin;
+        diffs.push(Math.abs(pg.ysSigned) - Math.abs(ls));
+      }
+      if(pg.n >= 3 && ev.state !== "post"){
+        const top = Math.max(pg.homePct, pg.awayPct);
+        if(!consensus || top > consensus.top) consensus = {top: top, side: pg.homePct >= pg.awayPct ? "home" : "away", ev: ev, n: pg.n};
+      }
+      if(pg.n >= 3 && ev.state === "post" && ev.completed){
+        const majHome = pg.homePct >= pg.awayPct;
+        const hasScore = ev.home.score !== null && ev.away.score !== null;
+        const homeWon = ev.home.winner || (hasScore && ev.home.score > ev.away.score);
+        const awayWon = ev.away.winner || (hasScore && ev.away.score > ev.home.score);
+        if(homeWon || awayWon){ if((majHome && homeWon) || (!majHome && awayWon)) recW++; else recL++; }
+        if(ev.sport !== "UFC" && hasScore) misses.push(Math.abs(pg.ysSigned - (ev.home.score - ev.away.score)));
+      }
+    }
+  }
+  if(!board) return "";
+  let h = '<div class="card" style="text-align:center"><div style="font-weight:900;letter-spacing:.08em">🌳 THE PARK METER</div>';
+  h += '<div style="font-size:22px;font-weight:900;margin-top:2px">' + totalPicks + ' <span class="mut" style="font-size:14px">Park picks on</span> ' + covered + ' <span class="mut" style="font-size:14px">of</span> ' + board + ' <span class="mut" style="font-size:14px">games on the board</span></div>';
+  if(diffs.length){
+    const avg = Math.round(10 * diffs.reduce((a, b) => a + b, 0) / diffs.length) / 10;
+    const mpos = 50 + (Math.max(-5, Math.min(5, avg)) / 5) * 50;
+    const word = avg > 0.24 ? "wider than the line" : (avg < -0.24 ? "tighter than the line" : "right on the line");
+    h += '<div class="ysruler" style="text-align:left"><div class="ysends"><span>tighter</span><span class="ysmid">PARK vs THE LINE: ' + (avg > 0 ? "+" : "") + avg + ' pts \u00b7 ' + word + '</span><span>wider</span></div><div class="ystrack"><div class="yszero"></div><div class="ysmark park" style="left:' + mpos + '%"></div></div></div>';
+  }
+  if(consensus){
+    const t = consensus.side === "home" ? consensus.ev.home : consensus.ev.away;
+    h += '<div class="small" style="margin-top:6px">Strongest lean: <b>' + consensus.top + '% on ' + esc(t.abbr) + '</b> <span class="mut">(' + esc(consensus.ev.away.abbr) + ' at ' + esc(consensus.ev.home.abbr) + ', ' + consensus.n + ' picks)</span></div>';
+  }
+  if(recW + recL > 0){
+    let line = '<div class="small" style="margin-top:4px">Park record on finished games: <b>' + recW + ' right, ' + recL + ' wrong</b>';
+    if(misses.length) line += ' <span class="mut">\u00b7 the Park average misses the final margin by ' + (Math.round(10 * misses.reduce((a, b) => a + b, 0) / misses.length) / 10) + ' pts</span>';
+    h += line + '</div>';
+  }
+  const parts = Object.keys(perSport).filter(k => perSport[k] > 0).map(k => SPORTS[k].label + ' ' + perSport[k]);
+  if(parts.length) h += '<div class="small mut" style="margin-top:4px">' + parts.join(' \u00b7 ') + '</div>';
+  h += '<div class="small mut" style="margin-top:4px">Only verified member picks move the meter. Guests play their own card.</div></div>';
+  return h;
+}
 function renderLive(){
   const v = document.getElementById("view");
   let live = [];
   for(const k of Object.keys(SPORTS)){ for(const ev of (feed[k] || {}).events || []) if(ev.state === "in") live.push(ev); }
-  if(!live.length){ v.innerHTML = lockedPicksHTML() + '<div class="card" style="text-align:center"><b>No games are live this minute.</b><br><span class="mut">When a game tips off, kicks off or drops the puck, it shows up here with the score and clock, refreshing on its own.</span></div>'; return; }
-  v.innerHTML = '<h2 class="sec">LIVE SCORING WATCH</h2>' + lockedPicksHTML() + parkLineHTML(live.map(e => e.id)) + live.map(gameCard).join("");
+  if(!live.length){ v.innerHTML = lockedPicksHTML() + parkMeterHTML() + '<div class="card" style="text-align:center"><b>No games are live this minute.</b><br><span class="mut">When a game tips off, kicks off or drops the puck, it shows up here with the score and clock, refreshing on its own.</span></div>'; return; }
+  v.innerHTML = '<h2 class="sec">LIVE SCORING WATCH</h2>' + lockedPicksHTML() + parkMeterHTML() + live.map(gameCard).join("");
   wirePickControls(v); wireInfo(v);
 }
 let drafts = {};
@@ -826,6 +896,7 @@ function renderYard(){
     (save.member ? '<div class="joinline" style="margin:10px 0">Card name: <b' + (save.supporter ? ' style="color:var(--gold)"' : '') + '>@' + esc(save.member.username) + (save.supporter ? ' 🐾' : '') + '</b> · your verified Park name. It is yours alone, so no one can be mistaken for you.</div>' : (save.nameLocked && save.name ? '<div class="joinline" style="margin:10px 0">🐾 Card name: <b' + (save.supporter ? ' style="color:var(--gold)"' : '') + '>' + esc(save.name) + (save.supporter ? ' 🐾' : '') + '</b> · stamped on your dog tag and locked. It does not change. Join the Park below and your verified @name takes over the tag for good.</div>' : '<div style="margin:10px 0"><input type="text" id="fanName" placeholder="Pick your card name" value="' + esc(save.name) + '"><div class="small mut" style="margin-top:6px">Pick carefully: stamping your dog tag locks this name to your card for good. It cannot be changed later.</div><button class="btn small" id="stampBtn">STAMP MY DOG TAG</button> <span class="small" id="stampMsg"></span></div>')) +
     '<div class="rankline">Rank: ' + rankEmoji(card.tot.points) + ' <b>' + rankTitle(card.tot.points) + '</b> · ' + card.tot.points + ' total points · ' + card.tot.dh + ' Direct Hits</div></div>';
   h += lockedPicksHTML();
+  h += parkMeterHTML();
   h += '<div class="card"><div class="tblwrap"><table><tr><th>LEAGUE</th><th>POINTS</th><th>PICKS</th><th>WINS</th><th>WIN %</th><th>PTS WIN %</th><th>DIRECT HITS</th></tr>';
   for(const k of Object.keys(SPORTS)){
     const s = card.per[k];
@@ -1198,8 +1269,7 @@ function render(){
 async function refresh(rerender){
   await Promise.all(Object.keys(SPORTS).map(fetchSport));
   let ids = [];
-  if(view === "LIVE"){ for(const k of Object.keys(SPORTS)) for(const ev of (feed[k] || {}).events || []) if(ev.state === "in") ids.push(ev.id); }
-  else if(view !== "YARD"){ ids = ((feed[view] || {}).events || []).map(e => e.id); }
+  for(const k of Object.keys(SPORTS)) for(const ev of (feed[k] || {}).events || []) ids.push(ev.id);
   if(ids.length) await fetchPark(ids);
   render();
 }
