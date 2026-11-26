@@ -62,6 +62,17 @@ nav.sports button .dot{display:inline-block; width:8px; height:8px; border-radiu
 .yszero{position:absolute; left:50%; top:-2px; width:2px; height:14px; background:var(--ink)}
 .ysmark{position:absolute; top:-4px; width:5px; height:18px; background:var(--gold); border-radius:2px; transform:translateX(-50%)}
 .ysmark.park{background:var(--green); width:7px; height:22px; top:-6px; border:1px solid #0b0e12; z-index:2}
+.splitbar{display:flex;height:10px;border-radius:5px;overflow:hidden;margin-top:5px;border:1px solid #0b0e12}
+.splitbar .sb-away{background:var(--gold)}
+.splitbar .sb-home{background:var(--green)}
+.gbar{display:flex;align-items:center;gap:8px;margin-top:4px;text-align:left}
+.gbar .glab{width:110px;flex:none;font-size:12px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gbar .gtrack{flex:1;height:9px;background:rgba(255,255,255,.09);border-radius:5px;overflow:hidden}
+.gbar .gfill{display:block;height:100%;background:var(--green)}
+.gbar .gval{width:34px;flex:none;font-size:12px;font-weight:700;text-align:right}
+.leanbar{position:relative;height:9px;background:rgba(255,255,255,.09);border-radius:5px;flex:1}
+.leanbar .lzero{position:absolute;left:50%;top:-2px;width:2px;height:13px;background:var(--mut)}
+.leanbar .lfill{position:absolute;top:0;height:100%;border-radius:5px}
 .pickrow{display:flex; gap:8px; justify-content:center; margin-top:8px}
 .pickrow button{padding:7px 12px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--mut); font-weight:800; font-size:12.5px; cursor:pointer}
 .pickrow button.danger{border-color:#6e3434; color:#ff9d9d}
@@ -164,7 +175,7 @@ footer{text-align:center; color:var(--mut); font-size:12.5px; margin-top:26px; l
         <li><b>Pick the winner and call the margin.</b> Your pick locks the moment the game starts.</li>
         <li><b>Scoring, the Direct Hit way:</b> call the exact margin for <b>100 points</b>. Every point you are off inside ten costs 10. Miss the winner or land outside ten and it scores 0. No negatives, ever. On a UFC fight, call the winner and the round it ends.</li>
         <li><b>One account per person.</b> Members verify with an email code, so the Park's numbers stay honest: no fake players, no spam, no stuffing the Yardstick. Your username becomes the name on your Score Card, and once it is verified it is yours alone, so nobody can be mistaken for you.</li>
-        <li><b>Guests play free</b> on their own card. Guest picks stay on this device, and a guest card name stamps once and locks, like a dog tag. Join the Park and your picks count in the Yardstick and the Park standings.</li>
+        <li><b>Guests play free</b> on their own card. Guest picks count in the Park averages anonymously, one voice per device per game, and a guest card name stamps once and locks, like a dog tag. Join the Park and your picks count under your own @name, on your Score Card and the Park Board.</li>
         <li><b>Keep usernames clean.</b> The Park is for everybody.</li>
       </ol>
       <div class="mrow">
@@ -200,9 +211,15 @@ let view = "NFL"; // sport key, "LIVE", or "YARD"
 let feed = {};    // sport -> {events:[], at:Date, error:bool}
 let refreshTimer = null;
 
+function newGuestId(){
+  let id = "g_";
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  for(let i = 0; i < 24; i++) id += chars[Math.floor(Math.random() * chars.length)];
+  return id;
+}
 function loadSave(){
-  try{ const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if(s && s.picks){ if(s.supporter === undefined) s.supporter = false; if(!s.member && s.name && s.nameLocked === undefined) s.nameLocked = true; return s; } }catch(e){}
-  return {name:"", picks:{}, board:[], welcomed:false, member:null, joinPending:null, joinDraft:null, supporter:false};
+  try{ const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if(s && s.picks){ if(s.supporter === undefined) s.supporter = false; if(!s.member && s.name && s.nameLocked === undefined) s.nameLocked = true; if(!s.guestId) s.guestId = newGuestId(); return s; } }catch(e){}
+  return {name:"", picks:{}, board:[], welcomed:false, member:null, joinPending:null, joinDraft:null, supporter:false, guestId: newGuestId()};
 }
 function store(){ localStorage.setItem(SAVE_KEY, JSON.stringify(save)); }
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
@@ -344,7 +361,7 @@ function gradePick(pick, ev){
       else if(err === 1){ pts = 50; }
       else { pts = 25; }
     }
-    pick.pts = pts; pick.dh = dh; pick.actualMargin = act; pick.winnerSide = winnerSide;
+    pick.pts = pts; pick.dh = dh; pick.actualMargin = act; pick.winnerSide = winnerSide; pick.win = winnerSide ? (pickSideFor(pick, ev) === winnerSide) : false;
     pick.finalScore = winnerSide
       ? (winnerSide === "home" ? ev.home.name : ev.away.name) + " def. " + (winnerSide === "home" ? ev.away.name : ev.home.name) + " · " + ufcFinishText(ev)
       : "No winner · " + ufcFinishText(ev);
@@ -361,7 +378,7 @@ function gradePick(pick, ev){
     const err = Math.abs(pick.margin - actualMargin);
     if(err <= 10){ pts = 100 - 10 * err; dh = (err === 0); }
   }
-  pick.pts = pts; pick.dh = dh; pick.actualMargin = actualMargin; pick.winnerSide = winnerSide;
+  pick.pts = pts; pick.dh = dh; pick.actualMargin = actualMargin; pick.winnerSide = winnerSide; pick.win = winnerSide ? (pickSideFor(pick, ev) === winnerSide) : false;
   pick.finalScore = ev.away.abbr + " " + ev.away.score + " at " + ev.home.abbr + " " + ev.home.score;
   store();
 }
@@ -381,7 +398,7 @@ function fmtTime(iso){
          d.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"});
 }
 function yardstickRuler(ev){
-  const max = ev.sport === "NHL" ? 6 : 28;
+  const max = ev.sport === "NHL" ? 8 : 28;
   const pg = parkData[ev.id];
   const lineSigned = ev.yardstick ? (ev.yardstick.side === "home" ? ev.yardstick.margin : -ev.yardstick.margin) : null;
   const lineText = ev.yardstick ? (lineSigned === 0 ? "dead even" : (lineSigned > 0 ? ev.home.abbr + " by " + Math.abs(lineSigned) : ev.away.abbr + " by " + Math.abs(lineSigned))) : null;
@@ -403,7 +420,7 @@ function yardstickRuler(ev){
       else if(diff < -0.24) verdict = " \u00b7 Park runs " + Math.abs(diff) + " pts tighter than the line";
       else verdict = " \u00b7 Park is right on the line";
     }
-    parkRow = '<div class="joinline" style="text-align:center;margin-top:6px"><span class="you" style="color:var(--blue);font-weight:900">THE PARK</span> <span class="mut">is picking</span> <b>' + pg.homePct + '% ' + esc(ev.home.abbr) + ' \u00b7 ' + pg.awayPct + '% ' + esc(ev.away.abbr) + '</b> <span class="mut">(' + pg.n + ' picks)</span><span class="mut">' + verdict + '</span></div>';
+    parkRow = '<div class="joinline" style="text-align:center;margin-top:6px"><span class="you" style="color:var(--blue);font-weight:900">THE PARK</span> <span class="mut">is picking</span> <b>' + pg.homePct + '% ' + esc(ev.home.abbr) + ' \u00b7 ' + pg.awayPct + '% ' + esc(ev.away.abbr) + '</b> <span class="mut">(' + pg.n + ' picks)</span><span class="mut">' + verdict + '</span><div class="splitbar"><div class="sb-away" style="width:' + pg.awayPct + '%"></div><div class="sb-home" style="width:' + pg.homePct + '%"></div></div></div>';
   }
   return '<div class="ysruler"><div class="ysends"><span>' + esc(ev.away.abbr) + '</span><span class="ysmid">' + head.join("  \u00b7  ") + '</span><span>' + esc(ev.home.abbr) + '</span></div>' +
     '<div class="ystrack"><div class="yszero"></div>' + marks + '</div>' +
@@ -477,7 +494,7 @@ function gameCard(ev){
       '<div class="marginrow"><span class="small mut" style="font-weight:900">CALL</span>' +
         '<input type="range" min="-' + SPORTS[ev.sport].max + '" max="' + SPORTS[ev.sport].max + '" value="' + d.dev + '" data-margin="' + ev.id + '">' +
         '<span class="marginval" id="mv-' + ev.id + '">' + (d.dev > 0 ? "+" : "") + d.dev + '</span></div>' +
-      '<div class="small mut" style="text-align:center">0 = right on the Yardstick · slide right to beat the stick, left to keep it closer than the stick</div>') +
+      '<div class="small mut" style="text-align:center">0 = the call the Yardstick suggests · slide right to raise your call, left to lower it</div>') +
       (ev.sport === "NHL" ? '<div class="small mut" style="text-align:center;margin-top:4px">🏒 Calls are in goals: most NHL games end 1 or 2 goals apart, and an overtime or shootout win is always by 1.</div>' : '') +
       '<div class="pickread" id="pr-' + ev.id + '">' + pickReadHTML(ev, d) + '</div>' +
       '<div style="text-align:center"><button class="btn" data-confirm="' + ev.id + '" id="cf-' + ev.id + '" style="display:' + (confirmVisible(ev, d) ? 'inline-block' : 'none') + '">' + (pick ? 'UPDATE MY PICK' : 'LOCK IT IN') + '</button></div>' +
@@ -546,7 +563,7 @@ function renderSport(sport){
 }
 function parkMeterHTML(){
   let totalPicks = 0, covered = 0, board = 0;
-  let diffs = [], consensus = null, recW = 0, recL = 0, misses = [];
+  let diffs = [], leans = [], consensus = null, recW = 0, recL = 0, misses = [];
   const perSport = {};
   for(const k of Object.keys(SPORTS)){
     for(const ev of (feed[k] || {}).events || []){
@@ -557,7 +574,9 @@ function parkMeterHTML(){
       perSport[k] = (perSport[k] || 0) + pg.n;
       if(ev.sport !== "UFC" && ev.yardstick){
         const ls = ev.yardstick.side === "home" ? ev.yardstick.margin : -ev.yardstick.margin;
-        diffs.push(Math.abs(pg.ysSigned) - Math.abs(ls));
+        const df = Math.abs(pg.ysSigned) - Math.abs(ls);
+        diffs.push(df);
+        leans.push({label: ev.away.abbr + " at " + ev.home.abbr, diff: Math.round(10 * df) / 10, n: pg.n});
       }
       if(pg.n >= 3 && ev.state !== "post"){
         const top = Math.max(pg.homePct, pg.awayPct);
@@ -591,9 +610,25 @@ function parkMeterHTML(){
     if(misses.length) line += ' <span class="mut">\u00b7 the Park average misses the final margin by ' + (Math.round(10 * misses.reduce((a, b) => a + b, 0) / misses.length) / 10) + ' pts</span>';
     h += line + '</div>';
   }
-  const parts = Object.keys(perSport).filter(k => perSport[k] > 0).map(k => SPORTS[k].label + ' ' + perSport[k]);
-  if(parts.length) h += '<div class="small mut" style="margin-top:4px">' + parts.join(' \u00b7 ') + '</div>';
-  h += '<div class="small mut" style="margin-top:4px">Only verified member picks move the meter. Guests play their own card.</div></div>';
+  const sportKeys = Object.keys(perSport).filter(k => perSport[k] > 0);
+  if(sportKeys.length){
+    const mx = Math.max.apply(null, sportKeys.map(k => perSport[k]));
+    h += '<div style="margin-top:8px"><div class="small" style="font-weight:800;letter-spacing:.05em">PICKS BY SPORT</div>';
+    for(const k of sportKeys) h += '<div class="gbar"><span class="glab">' + SPORTS[k].label + '</span><span class="gtrack"><span class="gfill" style="width:' + Math.round(100 * perSport[k] / mx) + '%"></span></span><span class="gval">' + perSport[k] + '</span></div>';
+    h += '</div>';
+  }
+  if(leans.length >= 2){
+    const top = leans.slice().sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff)).slice(0, 8);
+    h += '<div style="margin-top:8px"><div class="small" style="font-weight:800;letter-spacing:.05em">PARK vs THE LINE, BY GAME</div><div class="small mut">tighter \u2190 \u00b7 \u2192 wider</div>';
+    for(const L of top){
+      const w = Math.min(50, Math.abs(L.diff) / 5 * 50);
+      const left = L.diff >= 0 ? 50 : 50 - w;
+      const col = L.diff >= 0 ? 'var(--green)' : 'var(--gold)';
+      h += '<div class="gbar"><span class="glab">' + esc(L.label) + '</span><span class="leanbar"><span class="lzero"></span><span class="lfill" style="left:' + left + '%;width:' + w + '%;background:' + col + '"></span></span><span class="gval">' + (L.diff > 0 ? '+' : '') + L.diff + '</span></div>';
+    }
+    h += '</div>';
+  }
+  h += '<div class="small mut" style="margin-top:4px">Member and guest picks both move the meter. Guests count anonymously, one voice per device per game.</div></div>';
   return h;
 }
 function renderLive(){
@@ -617,7 +652,7 @@ function stickFor(ev, side){
 }
 function stickBase(ev, side){
   const s = stickFor(ev, side);
-  return s > 0 ? Math.round(s) : 1;
+  return s > 0 ? Math.ceil(s - 1e-9) : 1;
 }
 function devFromMargin(ev, pick){
   return pick.margin - stickBase(ev, pick.side);
@@ -631,8 +666,10 @@ function draftMargin(ev, d){
 }
 function devText(ev, d){
   const m = draftMargin(ev, d); if(m === null) return "";
-  const eff = m - stickBase(ev, d.side);
-  const a = Math.abs(eff); const as = (Math.round(a * 10) / 10).toString();
+  const sf = stickFor(ev, d.side);
+  const ref = sf > 0 ? sf : 1;
+  const eff = Math.round(10 * (m - ref)) / 10;
+  const a = Math.abs(eff); const as = a.toString();
   if(eff === 0) return "right on the Yardstick";
   return eff > 0 ? "+" + as + " over the Yardstick" : as + " under the Yardstick";
 }
@@ -669,7 +706,18 @@ function syncPickUI(ev){
   document.querySelectorAll('[data-pick="' + ev.id + '"]').forEach(b => b.classList.toggle("on", b.dataset.side === d.side));
   document.querySelectorAll('[data-round="' + ev.id + '"]').forEach(b => b.classList.toggle("on", d.margin === parseInt(b.dataset.r, 10)));
   const mv = document.getElementById("mv-" + ev.id); if(mv) mv.textContent = (d.dev > 0 ? "+" : "") + d.dev;
-  const sl = document.querySelector('[data-margin="' + ev.id + '"]'); if(sl && parseInt(sl.value, 10) !== d.dev) sl.value = d.dev;
+  const sl = document.querySelector('[data-margin="' + ev.id + '"]');
+  if(sl){
+    if(d.side && ev.sport !== "UFC"){
+      const base = stickBase(ev, d.side);
+      const lo = 1 - base, hi = SPORTS[ev.sport].max - base;
+      if(d.dev < lo) d.dev = lo;
+      if(d.dev > hi) d.dev = hi;
+      sl.min = lo; sl.max = hi;
+      if(mv) mv.textContent = (d.dev > 0 ? "+" : "") + d.dev;
+    } else { sl.min = -SPORTS[ev.sport].max; sl.max = SPORTS[ev.sport].max; }
+    if(parseInt(sl.value, 10) !== d.dev) sl.value = d.dev;
+  }
   const rm = document.getElementById("rm-" + ev.id);
   if(rm) rm.textContent = removeArm[ev.id] ? "Tap again to remove it for good" : "Remove my pick";
 }
@@ -795,7 +843,7 @@ function sportStats(sport){
     const p = save.picks[id];
     if(p.sport !== sport || p.pts === null || p.pts === undefined) continue;
     s.picks++; s.points += p.pts;
-    if(p.winnerSide && p.side === p.winnerSide) s.wins++;
+    if(p.win === true || (p.win === undefined && p.winnerSide && p.side === p.winnerSide)) s.wins++;
     if(p.pts > 0) s.winsPts++;
     if(p.dh) s.dh++;
   }
@@ -825,7 +873,7 @@ function rankEmoji(points){
 }
 function trophyCase(){
   const c = myCard(); const t = c.tot;
-  const sportsPlayed = Object.keys(SPORTS).filter(k => c.per[k].picks > 0).length;
+  const sportsPlayed = Object.keys(SPORTS).filter(k => c.per[k].points > 0).length;
   const byWeek = {};
   for(const id of Object.keys(save.picks)){ const p = save.picks[id];
     if(p.pts !== null && p.pts !== undefined) byWeek[p.week] = (byWeek[p.week] || 0) + p.pts; }
@@ -1009,20 +1057,19 @@ function parkPost(payload){
     .then(r => r.json()).catch(() => ({ok:false, why:"The Park did not answer. Try again in a bit."}));
 }
 function parkPostPick(ev){
-  if(!save.member) return;
   const p = save.picks[ev.id]; if(!p) return;
-  parkPost({username: save.member.username, token: save.member.token, gameId: ev.id, sport: ev.sport, side: p.side, margin: p.margin, gameStart: ev.date});
+  if(save.member) parkPost({username: save.member.username, token: save.member.token, gameId: ev.id, sport: ev.sport, side: p.side, margin: p.margin, gameStart: ev.date});
+  else if(save.guestId) parkPost({guest: save.guestId, gameId: ev.id, sport: ev.sport, side: p.side, margin: p.margin, gameStart: ev.date});
 }
 function parkRemovePick(ev){
-  if(!save.member) return;
-  const past = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
-  parkPost({username: save.member.username, token: save.member.token, gameId: ev.id, sport: ev.sport, side: "home", margin: 60, gameStart: past});
+  if(save.member) parkPost({action: "removePick", username: save.member.username, token: save.member.token, gameId: ev.id});
+  else if(save.guestId) parkPost({action: "removePick", guest: save.guestId, gameId: ev.id});
 }
 function parkLineHTML(ids){
   if(!PARK_API) return "";
   let n = 0, games = 0;
   for(const id of ids){ const pg = parkData[id]; if(pg && pg.n){ n += pg.n; games++; } }
-  if(!games) return '<div class="card joinline" style="text-align:center">🌳 <b>The Park Brain is live.</b> <span class="mut">No member picks on this board yet. Members set the Park Yardstick.</span></div>';
+  if(!games) return '<div class="card joinline" style="text-align:center">🌳 <b>The Park Brain is live.</b> <span class="mut">No Park picks on this board yet. Members and guests set the Park Yardstick.</span></div>';
   return '<div class="card joinline" style="text-align:center">🌳 <b>The Park Brain:</b> ' + n + ' member pick' + (n === 1 ? "" : "s") + ' across ' + games + ' game' + (games === 1 ? "" : "s") + ' on this board.</div>';
 }
 function memberCardHTML(){
