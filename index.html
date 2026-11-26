@@ -1184,15 +1184,25 @@ function drawCardImage(){
 }
 function seasonCode(){
   const c = myCard();
-  const slim = {name: c.name, sup: c.sup, tot: {points: c.tot.points, picks: c.tot.picks, wins: c.tot.wins, dh: c.tot.dh}};
-  return "DP-" + btoa(unescape(encodeURIComponent(JSON.stringify(slim))));
+  const raw = [String(c.name).replace(/~/g, "-"), c.tot.points, c.tot.picks, c.tot.wins, c.tot.dh, c.sup ? 1 : 0].join("~");
+  return "DP-" + btoa(unescape(encodeURIComponent(raw))).replace(/=+$/, "");
 }
 function decodeCardCode(raw){
-  const b = String(raw || "").trim().replace(/^(FY|DP)-/, "");
-  try{ return JSON.parse(decodeURIComponent(escape(atob(b)))); }catch(e){ return JSON.parse(atob(b)); }
+  let b = String(raw || "").trim().replace(/^(FY|DP)-/, "");
+  b += "=".repeat((4 - b.length % 4) % 4);
+  let txt = null;
+  try{ txt = decodeURIComponent(escape(atob(b))); }catch(e){ try{ txt = atob(b); }catch(e2){} }
+  if(txt){
+    try{ return JSON.parse(txt); }catch(e){}
+    const parts = txt.split("~");
+    if(parts.length >= 5 && parts[0]){
+      return {name: parts[0], sup: parts[5] === "1", tot: {points: +parts[1] || 0, picks: +parts[2] || 0, wins: +parts[3] || 0, dh: +parts[4] || 0}};
+    }
+  }
+  throw new Error("bad code");
 }
 function inviteLink(){
-  return "https://dogparkgames.github.io/dog-park/?invite=" + encodeURIComponent(seasonCode());
+  return "https://dogparkgames.github.io/dog-park/?i=" + encodeURIComponent(seasonCode());
 }
 function inviteText(){
   const c = myCard();
@@ -1200,7 +1210,7 @@ function inviteText(){
 }
 function checkInviteLink(){
   try{
-    const inv = new URLSearchParams(location.search).get("invite");
+    const inv = new URLSearchParams(location.search).get("i") || new URLSearchParams(location.search).get("invite");
     if(!inv) return;
     const c = decodeCardCode(inv);
     if(!c || !c.tot || typeof c.tot.points !== "number" || !c.name) return;
