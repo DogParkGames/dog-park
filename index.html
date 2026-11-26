@@ -52,6 +52,15 @@ nav.sports button .dot{display:inline-block; width:8px; height:8px; border-radiu
 .formchip{display:inline-block; width:22px; height:22px; line-height:22px; text-align:center; border-radius:6px; font-size:12px; font-weight:900; margin-right:4px; background:#2a3040}
 .formchip.w{background:var(--green-d); color:#fff}
 .formchip.l{background:#6e3434; color:#fff}
+.ysruler{margin-top:10px}
+.ysends{display:flex; justify-content:space-between; font-size:11px; font-weight:900; color:var(--mut); letter-spacing:.5px}
+.ysends .ysmid{color:var(--ink)}
+.ystrack{position:relative; height:10px; background:linear-gradient(90deg, rgba(87,168,255,.28), #12151a 50%, rgba(47,191,113,.28)); border:1px solid var(--line); border-radius:6px; margin-top:4px}
+.yszero{position:absolute; left:50%; top:-2px; width:2px; height:14px; background:var(--ink)}
+.ysmark{position:absolute; top:-4px; width:5px; height:18px; background:var(--gold); border-radius:2px; transform:translateX(-50%)}
+.pickrow{display:flex; gap:8px; justify-content:center; margin-top:8px}
+.pickrow button{padding:7px 12px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--mut); font-weight:800; font-size:12.5px; cursor:pointer}
+.pickrow button.danger{border-color:#6e3434; color:#ff9d9d}
 .center{text-align:center; min-width:86px}
 .center .ys{font-family:Oswald,sans-serif; font-size:24px; color:var(--ink)}
 .center .yslab{font-size:10px; letter-spacing:2px; color:var(--mut); font-weight:900}
@@ -227,6 +236,15 @@ function fmtTime(iso){
   return d.toLocaleDateString([], {weekday:"short", month:"short", day:"numeric"}) + " · " +
          d.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"});
 }
+function yardstickRuler(ev){
+  const max = ev.sport === "NHL" ? 6 : 28;
+  const v = ev.yardstick ? (ev.yardstick.side === "home" ? ev.yardstick.margin : -ev.yardstick.margin) : 0;
+  const clamped = Math.max(-max, Math.min(max, v));
+  const pos = 50 + (clamped / max) * 50;
+  const label = ev.yardstick ? (v === 0 ? "dead even" : (v > 0 ? ev.home.abbr + " by " + Math.abs(v) : ev.away.abbr + " by " + Math.abs(v))) : "no line posted, stick at 0";
+  return '<div class="ysruler"><div class="ysends"><span>' + esc(ev.away.abbr) + '</span><span class="ysmid">YARDSTICK ' + (v > 0 ? "+" : "") + v + ' · ' + label + '</span><span>' + esc(ev.home.abbr) + '</span></div>' +
+    '<div class="ystrack"><div class="yszero"></div><div class="ysmark" style="left:' + pos + '%"></div></div></div>';
+}
 function marginBars(pick, ev){
   const rows = [];
   const ys = ev.yardstick ? ev.yardstick.margin : null;
@@ -251,8 +269,9 @@ function gameCard(ev){
   if(fin || live){
     center = '<div class="ys">' + (ev.away.score ?? "-") + " · " + (ev.home.score ?? "-") + '</div><div class="yslab">' + (fin ? "FINAL" : "LIVE") + '</div>';
   } else if(ev.yardstick){
+    const sv = ev.yardstick.side === "home" ? ev.yardstick.margin : -ev.yardstick.margin;
     const fav = ev.yardstick.side === "home" ? ev.home : ev.away;
-    center = '<div class="ys">' + fav.abbr + " by " + ev.yardstick.margin + '</div><div class="yslab">YARDSTICK</div>';
+    center = '<div class="ys">' + (sv > 0 ? "+" : "") + sv + '</div><div class="yslab">YARDSTICK</div><div class="yslab" style="letter-spacing:.5px;text-transform:none">' + fav.abbr + ' by ' + ev.yardstick.margin + '</div>';
   } else {
     center = '<div class="vs">VS</div><div class="yslab">NO LINE</div>';
   }
@@ -274,6 +293,8 @@ function gameCard(ev){
         '<span class="marginval" id="mv-' + ev.id + '">' + d.margin + '</span></div>' +
       '<div class="pickread" id="pr-' + ev.id + '">' + pickReadHTML(ev, d) + '</div>' +
       '<div style="text-align:center"><button class="btn" data-confirm="' + ev.id + '" id="cf-' + ev.id + '" style="display:' + (confirmVisible(ev, d) ? 'inline-block' : 'none') + '">' + (pick ? 'UPDATE MY PICK' : 'LOCK IT IN') + '</button></div>' +
+      '<div class="pickrow"><button data-clear="' + ev.id + '" id="cl-' + ev.id + '">Clear my choices</button>' +
+      (pick ? '<button data-remove="' + ev.id + '" id="rm-' + ev.id + '" class="danger">Remove my pick</button>' : '') + '</div>' +
     '</div>';
   } else if(fin && pick && pick.pts !== null && pick.pts !== undefined){
     body = '<div class="result">You called ' + esc(pick.side === "home" ? ev.home.abbr : ev.away.abbr) + ' by ' + pick.margin + ' · Actual margin ' + pick.actualMargin +
@@ -287,7 +308,7 @@ function gameCard(ev){
     '<div class="team" data-info="' + ev.id + '" data-side="away"><div class="abbr">' + esc(ev.away.abbr) + '</div><div class="tname">' + esc(ev.away.name) + '</div>' + (ev.away.record ? '<div class="rec">' + esc(ev.away.record) + '</div>' : '') + '<div class="statslink">TEAM STATS ›</div></div>' +
     '<div class="center">' + center + '</div>' +
     '<div class="team" data-info="' + ev.id + '" data-side="home"><div class="abbr">' + esc(ev.home.abbr) + '</div><div class="tname">' + esc(ev.home.name) + '</div>' + (ev.home.record ? '<div class="rec">' + esc(ev.home.record) + '</div>' : '') + '<div class="statslink">TEAM STATS ›</div></div>' +
-    '</div><div class="meta">' + meta + '</div><div class="infopanel" id="info-' + ev.id + '" style="display:none"></div>' + body + '</div>';
+    '</div>' + (!started ? yardstickRuler(ev) : '') + '<div class="meta">' + meta + '</div><div class="infopanel" id="info-' + ev.id + '" style="display:none"></div>' + body + '</div>';
 }
 function renderNav(){
   const nav = document.getElementById("sportNav");
@@ -341,6 +362,7 @@ function confirmVisible(ev, d){
   const saved = save.picks[ev.id];
   return !(saved && saved.side === d.side && saved.margin === d.margin);
 }
+let removeArm = {};
 function syncPickUI(ev){
   const d = drafts[ev.id]; if(!d) return;
   const pr = document.getElementById("pr-" + ev.id); if(pr) pr.innerHTML = pickReadHTML(ev, d);
@@ -348,6 +370,9 @@ function syncPickUI(ev){
   if(cf){ cf.style.display = confirmVisible(ev, d) ? "inline-block" : "none"; cf.textContent = save.picks[ev.id] ? "UPDATE MY PICK" : "LOCK IT IN"; }
   document.querySelectorAll('[data-pick="' + ev.id + '"]').forEach(b => b.classList.toggle("on", b.dataset.side === d.side));
   const mv = document.getElementById("mv-" + ev.id); if(mv) mv.textContent = d.margin;
+  const sl = document.querySelector('[data-margin="' + ev.id + '"]'); if(sl && parseInt(sl.value, 10) !== d.margin) sl.value = d.margin;
+  const rm = document.getElementById("rm-" + ev.id);
+  if(rm) rm.textContent = removeArm[ev.id] ? "Tap again to remove it for good" : "Remove my pick";
 }
 function wirePickControls(root){
   root.querySelectorAll("[data-pick]").forEach(btn => btn.addEventListener("click", () => {
@@ -366,7 +391,22 @@ function wirePickControls(root){
     const ev = findEvent(btn.dataset.confirm); if(!ev) return;
     const d = drafts[ev.id]; if(!d || !d.side) return;
     savePick(ev, d.side, d.margin);
+    removeArm[ev.id] = false;
+    refresh(false);
+  }));
+  root.querySelectorAll("[data-clear]").forEach(btn => btn.addEventListener("click", () => {
+    const ev = findEvent(btn.dataset.clear); if(!ev) return;
+    const saved = save.picks[ev.id];
+    drafts[ev.id] = saved ? {side: saved.side, margin: saved.margin, touched: false} : {side: null, margin: Math.min(7, SPORTS[ev.sport].max), touched: false};
+    removeArm[ev.id] = false;
     syncPickUI(ev);
+  }));
+  root.querySelectorAll("[data-remove]").forEach(btn => btn.addEventListener("click", () => {
+    const ev = findEvent(btn.dataset.remove); if(!ev) return;
+    if(!removeArm[ev.id]){ removeArm[ev.id] = true; syncPickUI(ev); return; }
+    delete save.picks[ev.id]; store();
+    delete drafts[ev.id]; removeArm[ev.id] = false;
+    refresh(false);
   }));
 }
 let summaries = {};
