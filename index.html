@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dog Park: Pick the Winner, Call the Margin</title>
-<meta name="description" content="Dog Park is a free sports pick'em game. Pick the winner, call the margin, chase Direct Hits across the NFL, NBA, College Football, College Basketball and the NHL. Live scores, the Yardstick, your Score Card and the Park Board.">
+<meta name="description" content="Dog Park is a free sports pick'em game. Pick the winner, call the margin, chase Direct Hits across the NFL, NBA, College Football, College Basketball, the NHL and UFC fights. Live scores, the Yardstick, your Score Card and the Park Board.">
 <meta property="og:title" content="Dog Park">
 <meta property="og:description" content="Pick the winner. Call the margin. Measure up against the Yardstick.">
 <meta property="og:type" content="website">
@@ -64,6 +64,9 @@ nav.sports button .dot{display:inline-block; width:8px; height:8px; border-radiu
 .pickrow{display:flex; gap:8px; justify-content:center; margin-top:8px}
 .pickrow button{padding:7px 12px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--mut); font-weight:800; font-size:12.5px; cursor:pointer}
 .pickrow button.danger{border-color:#6e3434; color:#ff9d9d}
+.roundrow{display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:12px}
+.roundrow button{padding:9px 14px; border-radius:10px; border:2px solid var(--line); background:#171b22; color:var(--ink); font-family:Oswald,sans-serif; font-size:15px; letter-spacing:.5px; cursor:pointer}
+.roundrow button.on{border-color:var(--gold); background:rgba(242,193,78,.14); color:var(--gold)}
 .center{text-align:center; min-width:86px}
 .center .ys{font-family:Oswald,sans-serif; font-size:24px; color:var(--ink)}
 .center .yslab{font-size:10px; letter-spacing:2px; color:var(--mut); font-weight:900}
@@ -145,7 +148,7 @@ footer{text-align:center; color:var(--mut); font-size:12.5px; margin-top:26px; l
       <div class="parksub">Pick the winner. Call the margin. <b>Measure up.</b></div>
       <ol class="rulelist">
         <li><b>Pick the winner and call the margin.</b> Your pick locks the moment the game starts.</li>
-        <li><b>Scoring, the Direct Hit way:</b> call the exact margin for <b>100 points</b>. Every point you are off inside ten costs 10. Miss the winner or land outside ten and it scores 0. No negatives, ever.</li>
+        <li><b>Scoring, the Direct Hit way:</b> call the exact margin for <b>100 points</b>. Every point you are off inside ten costs 10. Miss the winner or land outside ten and it scores 0. No negatives, ever. On a UFC fight, call the winner and the round it ends.</li>
         <li><b>One account per person.</b> Members verify with an email code, so the Park's numbers stay honest: no fake players, no spam, no stuffing the Yardstick. Your username becomes the name on your Score Card, and once it is verified it is yours alone, so nobody can be mistaken for you.</li>
         <li><b>Guests play free</b> on their own card. Guest picks stay on this device. Join the Park and your picks count in the Yardstick and the Park standings.</li>
         <li><b>Keep usernames clean.</b> The Park is for everybody.</li>
@@ -170,7 +173,8 @@ const SPORTS = {
   NBA:  {label:"NBA", path:"basketball/nba", max:45},
   NCAAF:{label:"COLLEGE FOOTBALL", path:"football/college-football", max:55},
   NCAAB:{label:"COLLEGE BASKETBALL", path:"basketball/mens-college-basketball", max:45},
-  NHL:  {label:"NHL", path:"hockey/nhl", max:8}
+  NHL:  {label:"NHL", path:"hockey/nhl", max:8},
+  UFC:  {label:"UFC", path:"mma/ufc", max:6}
 };
 const API = "https://site.api.espn.com/apis/site/v2/sports/";
 const PARK_API = "https://script.google.com/macros/s/AKfycbw_zZVUnWKSGJUOT_vqODqUc_Fu9M_BaSxX7HkWM-tSxpdWBqCWtwYqNoavn56UK4eSlg/exec";
@@ -229,12 +233,60 @@ function normalizeEvent(raw, sport){
   }
   return ev;
 }
+function normalizeBout(raw, comp, isMain){
+  const cs = (comp.competitors || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+  const st = (comp.status && comp.status.type) || {};
+  function fighter(c){
+    const a = (c && c.athlete) || {};
+    const nm = a.displayName || "TBA";
+    return {abbr: nm.split(" ").pop() || nm, name: nm, id: a.id || "", record: (c && c.records && c.records[0] && c.records[0].summary) || (c && c.record) || null, score: null, winner: !!(c && c.winner)};
+  }
+  let rounds = 3;
+  const fmt = comp.format || {};
+  const periods = (fmt.regulation && fmt.regulation.periods) || fmt.periods || 0;
+  if(periods >= 1 && periods <= 5) rounds = periods;
+  else if(isMain) rounds = 5;
+  return {
+    id: String(raw.id) + "_" + String(comp.id), sport: "UFC",
+    date: comp.date || raw.date, name: raw.name || "",
+    title: raw.name || "UFC",
+    weight: (comp.type && comp.type.abbreviation) || "",
+    rounds: rounds, main: !!isMain,
+    state: st.state || "pre", completed: !!st.completed,
+    detail: st.shortDetail || st.detail || "",
+    detailLong: st.detail || "",
+    clock: (comp.status && comp.status.displayClock) || "",
+    period: (comp.status && comp.status.period) || 0,
+    home: fighter(cs[0]), away: fighter(cs[1]),
+    oddsDetails: null, yardstick: null
+  };
+}
+function ufcActual(ev){
+  const txt = ((ev.detail || "") + " " + (ev.detailLong || "")).toLowerCase();
+  if(txt.indexOf("decision") !== -1) return ev.rounds + 1;
+  const p = ev.period || 0;
+  if(p >= 1 && p <= ev.rounds) return p;
+  return ev.rounds + 1;
+}
+function ufcFinishText(ev){
+  const act = ufcActual(ev);
+  return act > ev.rounds ? "went the distance" : "ended in round " + act;
+}
 async function fetchSport(sport){
   try{
     const r = await fetch(API + SPORTS[sport].path + "/scoreboard");
     if(!r.ok) throw new Error("feed");
     const data = await r.json();
-    const events = (data.events || []).map(e => normalizeEvent(e, sport));
+    let events;
+    if(sport === "UFC"){
+      events = [];
+      for(const raw of (data.events || [])){
+        const comps = (raw.competitions || []).slice().reverse();
+        comps.forEach((comp, i) => events.push(normalizeBout(raw, comp, i === 0)));
+      }
+    } else {
+      events = (data.events || []).map(e => normalizeEvent(e, sport));
+    }
     feed[sport] = {events: events, at: new Date(), error:false};
     gradeAll(events);
   }catch(e){
@@ -243,6 +295,25 @@ async function fetchSport(sport){
 }
 function gradePick(pick, ev){
   if(pick.pts !== null && pick.pts !== undefined) return;
+  if(ev.sport === "UFC"){
+    let winnerSide = null;
+    if(ev.home.winner) winnerSide = "home";
+    else if(ev.away.winner) winnerSide = "away";
+    let pts = 0, dh = false;
+    const act = ufcActual(ev);
+    if(winnerSide && pick.side === winnerSide){
+      const err = Math.abs(pick.margin - act);
+      if(err === 0){ pts = 100; dh = true; }
+      else if(err === 1){ pts = 50; }
+      else { pts = 25; }
+    }
+    pick.pts = pts; pick.dh = dh; pick.actualMargin = act; pick.winnerSide = winnerSide;
+    pick.finalScore = winnerSide
+      ? (winnerSide === "home" ? ev.home.name : ev.away.name) + " def. " + (winnerSide === "home" ? ev.away.name : ev.home.name) + " · " + ufcFinishText(ev)
+      : "No winner · " + ufcFinishText(ev);
+    store();
+    return;
+  }
   if(ev.home.score === null || ev.away.score === null) return;
   let winnerSide = null;
   if(ev.home.winner || ev.home.score > ev.away.score) winnerSide = "home";
@@ -300,6 +371,12 @@ function marginBars(pick, ev){
   rows.push(row("ACTUAL", act, "var(--gold)"));
   return '<div class="bars">' + rows.join("") + '</div>';
 }
+function roundRowHTML(ev, d){
+  let h = '<div class="roundrow"><span class="small mut" style="font-weight:900;width:100%;text-align:center">CALL THE FINISH</span>';
+  for(let r = 1; r <= ev.rounds; r++) h += '<button data-round="' + ev.id + '" data-r="' + r + '" class="' + (d.margin === r ? "on" : "") + '">R' + r + '</button>';
+  h += '<button data-round="' + ev.id + '" data-r="' + (ev.rounds + 1) + '" class="' + (d.margin === ev.rounds + 1 ? "on" : "") + '">DISTANCE</button></div>';
+  return h;
+}
 function gameCard(ev){
   const parkGame = parkData[ev.id];
   const pick = save.picks[ev.id];
@@ -307,15 +384,21 @@ function gameCard(ev){
   const live = ev.state === "in";
   const fin = ev.state === "post";
   let center;
-  if(fin || live){
+  if(ev.sport === "UFC" && (fin || live)){
+    center = fin
+      ? '<div class="ys" style="font-size:19px">FINAL</div><div class="yslab">' + esc(ev.weight || "BOUT") + '</div>'
+      : '<div class="ys" style="font-size:19px">LIVE</div><div class="yslab">' + (ev.period ? "ROUND " + ev.period : esc(ev.weight || "BOUT")) + '</div>';
+  } else if(fin || live){
     center = '<div class="ys">' + (ev.away.score ?? "-") + " · " + (ev.home.score ?? "-") + '</div><div class="yslab">' + (fin ? "FINAL" : "LIVE") + '</div>';
-  } else if(parkGame && parkGame.ysReady){
+  } else if(ev.sport !== "UFC" && parkGame && parkGame.ysReady){
     const sv = parkGame.ysSigned;
     center = '<div class="ys">' + (sv > 0 ? "+" : "") + sv + '</div><div class="yslab">PARK YARDSTICK</div><div class="yslab" style="letter-spacing:.5px;text-transform:none">' + parkGame.ysText + '</div>';
   } else if(ev.yardstick){
     const sv = ev.yardstick.side === "home" ? ev.yardstick.margin : -ev.yardstick.margin;
     const fav = ev.yardstick.side === "home" ? ev.home : ev.away;
     center = '<div class="ys">' + (sv > 0 ? "+" : "") + sv + '</div><div class="yslab">YARDSTICK</div><div class="yslab" style="letter-spacing:.5px;text-transform:none">' + fav.abbr + ' by ' + ev.yardstick.margin + '</div>';
+  } else if(ev.sport === "UFC"){
+    center = '<div class="vs">VS</div><div class="yslab">' + esc(ev.weight || "BOUT") + ' · ' + ev.rounds + ' ROUNDS</div>';
   } else {
     center = '<div class="vs">VS</div><div class="yslab">NO LINE</div>';
   }
@@ -323,37 +406,49 @@ function gameCard(ev){
   if(live) meta = '<span class="live">● LIVE</span> · ' + esc(ev.detail);
   else if(fin) meta = '<span class="fin">Final</span> · ' + fmtTime(ev.date);
   else meta = fmtTime(ev.date) + (ev.yardstick ? ' · <span class="mut">The Yardstick (the line): ' + esc(ev.oddsDetails) + '</span>' : '');
+  if(ev.sport === "UFC" && !started) meta = (ev.main ? '⭐ MAIN EVENT · ' : '') + meta;
   let body = "";
   if(!started){
-    if(!drafts[ev.id]) drafts[ev.id] = pick ? {side: pick.side, dev: devFromMargin(ev, pick), touched: false} : {side: null, dev: 0, touched: false};
+    if(!drafts[ev.id]) drafts[ev.id] = ev.sport === "UFC"
+      ? (pick ? {side: pick.side, margin: pick.margin, touched: false} : {side: null, margin: ev.rounds + 1, touched: false})
+      : (pick ? {side: pick.side, dev: devFromMargin(ev, pick), touched: false} : {side: null, dev: 0, touched: false});
     const d = drafts[ev.id];
     body = '<div class="pickbox">' +
       '<div class="pickbtns">' +
         '<button data-pick="' + ev.id + '" data-side="away" class="' + (d.side === "away" ? "on" : "") + '">' + esc(ev.away.abbr) + ' wins</button>' +
         '<button data-pick="' + ev.id + '" data-side="home" class="' + (d.side === "home" ? "on" : "") + '">' + esc(ev.home.abbr) + ' wins</button>' +
       '</div>' +
+      (ev.sport === "UFC" ? roundRowHTML(ev, d) :
       '<div class="marginrow"><span class="small mut" style="font-weight:900">CALL</span>' +
         '<input type="range" min="-' + SPORTS[ev.sport].max + '" max="' + SPORTS[ev.sport].max + '" value="' + d.dev + '" data-margin="' + ev.id + '">' +
         '<span class="marginval" id="mv-' + ev.id + '">' + (d.dev > 0 ? "+" : "") + d.dev + '</span></div>' +
-      '<div class="small mut" style="text-align:center">0 = right on the Yardstick · slide right to beat the stick, left to keep it closer than the stick</div>' +
+      '<div class="small mut" style="text-align:center">0 = right on the Yardstick · slide right to beat the stick, left to keep it closer than the stick</div>') +
       '<div class="pickread" id="pr-' + ev.id + '">' + pickReadHTML(ev, d) + '</div>' +
       '<div style="text-align:center"><button class="btn" data-confirm="' + ev.id + '" id="cf-' + ev.id + '" style="display:' + (confirmVisible(ev, d) ? 'inline-block' : 'none') + '">' + (pick ? 'UPDATE MY PICK' : 'LOCK IT IN') + '</button></div>' +
       '<div class="pickrow"><button data-clear="' + ev.id + '" id="cl-' + ev.id + '">Clear my choices</button>' +
       (pick ? '<button data-remove="' + ev.id + '" id="rm-' + ev.id + '" class="danger">Remove my pick</button>' : '') + '</div>' +
     '</div>';
   } else if(fin && pick && pick.pts !== null && pick.pts !== undefined){
-    body = '<div class="result">You called ' + esc(pick.side === "home" ? ev.home.abbr : ev.away.abbr) + ' by ' + pick.margin + ' · Actual margin ' + pick.actualMargin +
-      '<span class="pts' + (pick.dh ? " dh" : "") + '">' + (pick.dh ? "🏆 DIRECT HIT · " : "") + pick.pts + ' PTS</span></div>' + marginBars(pick, ev);
+    if(ev.sport === "UFC"){
+      body = '<div class="result">You called <b>' + esc(pick.side === "home" ? ev.home.name : ev.away.name) + '</b> · ' + (pick.margin > ev.rounds ? "goes the distance" : "ends in round " + pick.margin) +
+        '<br><span class="mut">Result:</span> ' + esc(pick.finalScore || "") +
+        '<span class="pts' + (pick.dh ? " dh" : "") + '">' + (pick.dh ? "🏆 DIRECT HIT · " : "") + pick.pts + ' PTS</span></div>';
+    } else {
+      body = '<div class="result">You called ' + esc(pick.side === "home" ? ev.home.abbr : ev.away.abbr) + ' by ' + pick.margin + ' · Actual margin ' + pick.actualMargin +
+        '<span class="pts' + (pick.dh ? " dh" : "") + '">' + (pick.dh ? "🏆 DIRECT HIT · " : "") + pick.pts + ' PTS</span></div>' + marginBars(pick, ev);
+    }
   } else if(fin && pick){
     body = '<div class="result mut">Grading your pick...</div>';
   } else if(live && pick){
-    body = '<div class="result">Your pick: ' + esc(pick.side === "home" ? ev.home.abbr : ev.away.abbr) + ' to win by ' + pick.margin + '</div>';
+    body = ev.sport === "UFC"
+      ? '<div class="result">Your pick: ' + esc(pick.side === "home" ? ev.home.name : ev.away.name) + ' · ' + (pick.margin > ev.rounds ? "goes the distance" : "ends in round " + pick.margin) + '</div>'
+      : '<div class="result">Your pick: ' + esc(pick.side === "home" ? ev.home.abbr : ev.away.abbr) + ' to win by ' + pick.margin + '</div>';
   }
   return '<div class="card game"><div class="teams">' +
-    '<div class="team" data-info="' + ev.id + '" data-side="away"><div class="abbr">' + esc(ev.away.abbr) + '</div><div class="tname">' + esc(ev.away.name) + '</div>' + (ev.away.record ? '<div class="rec">' + esc(ev.away.record) + '</div>' : '') + '<div class="statslink">TEAM STATS ›</div></div>' +
+    '<div class="team" data-info="' + ev.id + '" data-side="away"><div class="abbr">' + esc(ev.away.abbr) + '</div><div class="tname">' + esc(ev.away.name) + '</div>' + (ev.away.record ? '<div class="rec">' + esc(ev.away.record) + '</div>' : '') + (ev.sport === "UFC" ? '' : '<div class="statslink">TEAM STATS ›</div>') + '</div>' +
     '<div class="center">' + center + '</div>' +
-    '<div class="team" data-info="' + ev.id + '" data-side="home"><div class="abbr">' + esc(ev.home.abbr) + '</div><div class="tname">' + esc(ev.home.name) + '</div>' + (ev.home.record ? '<div class="rec">' + esc(ev.home.record) + '</div>' : '') + '<div class="statslink">TEAM STATS ›</div></div>' +
-    '</div>' + (!started ? yardstickRuler(ev) : '') + '<div class="meta">' + meta + '</div><div class="infopanel" id="info-' + ev.id + '" style="display:none"></div>' + body + '</div>';
+    '<div class="team" data-info="' + ev.id + '" data-side="home"><div class="abbr">' + esc(ev.home.abbr) + '</div><div class="tname">' + esc(ev.home.name) + '</div>' + (ev.home.record ? '<div class="rec">' + esc(ev.home.record) + '</div>' : '') + (ev.sport === "UFC" ? '' : '<div class="statslink">TEAM STATS ›</div>') + '</div>' +
+    '</div>' + (!started && ev.sport !== "UFC" ? yardstickRuler(ev) : '') + '<div class="meta">' + meta + '</div><div class="infopanel" id="info-' + ev.id + '" style="display:none"></div>' + body + '</div>';
 }
 function renderNav(){
   const nav = document.getElementById("sportNav");
@@ -380,7 +475,17 @@ function renderSport(sport){
   if(f.error && !f.events.length){ v.innerHTML = '<div class="err">The score feed did not answer. Your picks are safe.<br><button class="btn small" onclick="refresh(true)">Try again</button></div>'; return; }
   if(!f.events.length){ v.innerHTML = '<div class="card">No games on the board right now for ' + SPORTS[sport].label + '. Check back on game day.</div>'; return; }
   const sorted = f.events.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
-  v.innerHTML = parkLineHTML(sorted.map(e => e.id)) + sorted.map(gameCard).join("");
+  let cardsHtml = "";
+  if(sport === "UFC"){
+    let lastTitle = null;
+    for(const ev of sorted){
+      if(ev.title !== lastTitle){ lastTitle = ev.title; cardsHtml += '<h2 class="sec">🥊 ' + esc(ev.title) + '</h2>'; }
+      cardsHtml += gameCard(ev);
+    }
+  } else {
+    cardsHtml = sorted.map(gameCard).join("");
+  }
+  v.innerHTML = parkLineHTML(sorted.map(e => e.id)) + cardsHtml;
   wirePickControls(v); wireInfo(v);
 }
 function renderLive(){
@@ -407,6 +512,7 @@ function devFromMargin(ev, pick){
 }
 function draftMargin(ev, d){
   if(!d.side) return null;
+  if(ev.sport === "UFC") return d.margin || (ev.rounds + 1);
   const m = Math.round(stickFor(ev, d.side)) + d.dev;
   return Math.max(1, Math.min(SPORTS[ev.sport].max, m));
 }
@@ -418,6 +524,13 @@ function devText(ev, d){
   return eff > 0 ? "+" + as + " over the Yardstick" : as + " under the Yardstick";
 }
 function pickReadHTML(ev, d){
+  if(ev.sport === "UFC"){
+    const savedU = save.picks[ev.id];
+    if(!d.side) return 'Tap your winner, call the round it ends or goes the distance, then lock it in. Nothing counts until you do.';
+    const callU = esc(d.side === "home" ? ev.home.name : ev.away.name) + ' to win · ' + (d.margin > ev.rounds ? 'goes the distance' : 'ends in round ' + d.margin);
+    if(savedU && savedU.side === d.side && savedU.margin === d.margin) return 'Your pick: <b>' + callU + '</b><span class="saved">saved</span>';
+    return 'Your call: <b>' + callU + '</b>' + (savedU ? ' · tap UPDATE MY PICK to change your saved pick.' : ' · tap LOCK IT IN to make it count.');
+  }
   const saved = save.picks[ev.id];
   if(!d.side){
     if(d.touched) return 'Call set to <b>' + (d.dev > 0 ? "+" : "") + d.dev + ' off the Yardstick</b>. Tap your winner above, study the matchup all you want, then lock it in.';
@@ -440,6 +553,7 @@ function syncPickUI(ev){
   const cf = document.getElementById("cf-" + ev.id);
   if(cf){ cf.style.display = confirmVisible(ev, d) ? "inline-block" : "none"; cf.textContent = save.picks[ev.id] ? "UPDATE MY PICK" : "LOCK IT IN"; }
   document.querySelectorAll('[data-pick="' + ev.id + '"]').forEach(b => b.classList.toggle("on", b.dataset.side === d.side));
+  document.querySelectorAll('[data-round="' + ev.id + '"]').forEach(b => b.classList.toggle("on", d.margin === parseInt(b.dataset.r, 10)));
   const mv = document.getElementById("mv-" + ev.id); if(mv) mv.textContent = (d.dev > 0 ? "+" : "") + d.dev;
   const sl = document.querySelector('[data-margin="' + ev.id + '"]'); if(sl && parseInt(sl.value, 10) !== d.dev) sl.value = d.dev;
   const rm = document.getElementById("rm-" + ev.id);
@@ -458,6 +572,12 @@ function wirePickControls(root){
     d.dev = parseInt(sl.value, 10); d.touched = true;
     syncPickUI(ev);
   }));
+  root.querySelectorAll("[data-round]").forEach(btn => btn.addEventListener("click", () => {
+    const ev = findEvent(btn.dataset.round); if(!ev) return;
+    const d = drafts[ev.id] || (drafts[ev.id] = {side: null, margin: ev.rounds + 1, touched: false});
+    d.margin = parseInt(btn.dataset.r, 10); d.touched = true;
+    syncPickUI(ev);
+  }));
   root.querySelectorAll("[data-confirm]").forEach(btn => btn.addEventListener("click", () => {
     const ev = findEvent(btn.dataset.confirm); if(!ev) return;
     const d = drafts[ev.id]; if(!d || !d.side) return;
@@ -468,7 +588,9 @@ function wirePickControls(root){
   root.querySelectorAll("[data-clear]").forEach(btn => btn.addEventListener("click", () => {
     const ev = findEvent(btn.dataset.clear); if(!ev) return;
     const saved = save.picks[ev.id];
-    drafts[ev.id] = saved ? {side: saved.side, dev: devFromMargin(ev, saved), touched: false} : {side: null, dev: 0, touched: false};
+    drafts[ev.id] = ev.sport === "UFC"
+      ? (saved ? {side: saved.side, margin: saved.margin, touched: false} : {side: null, margin: ev.rounds + 1, touched: false})
+      : (saved ? {side: saved.side, dev: devFromMargin(ev, saved), touched: false} : {side: null, dev: 0, touched: false});
     removeArm[ev.id] = false;
     syncPickUI(ev);
   }));
@@ -485,6 +607,7 @@ let summaries = {};
 let openInfo = {};
 async function toggleInfo(id, side){
   const ev = findEvent(id); if(!ev) return;
+  if(ev.sport === "UFC") return;
   const panel = document.getElementById("info-" + id); if(!panel) return;
   if(openInfo[id] === side){ panel.style.display = "none"; openInfo[id] = null; return; }
   openInfo[id] = side;
@@ -591,7 +714,7 @@ function trophyCase(){
     {emo:"💎", name:"Direct Hit", desc:"Call an exact margin", got: t.dh >= 1},
     {emo:"🔥", name:"On Fire", desc:"Score in 5 straight graded picks", got: best >= 5},
     {emo:"💯", name:"Century Week", desc:"100+ points in one week", got: bestWeek >= 100},
-    {emo:"🌎", name:"Whole Park", desc:"Score in all five sports", got: sportsPlayed >= 5},
+    {emo:"🌎", name:"Whole Park", desc:"Score in every sport in the Park", got: sportsPlayed >= Object.keys(SPORTS).length},
     {emo:"🎯", name:"Sharpshooter", desc:"Land 5 Direct Hits", got: t.dh >= 5},
     {emo:"⭐", name:"Regular", desc:"Reach 250 total points", got: t.points >= 250},
     {emo:"👑", name:"Top Dog", desc:"Reach 3,000 total points", got: t.points >= 3000},
@@ -648,7 +771,7 @@ function renderYard(){
   h += '<div class="card"><div class="rankline">HOW SCORING WORKS</div><div class="small" style="line-height:1.7;margin-top:6px">' +
     'Pick the winner and call the margin. Beat the number, bank the points: an exact margin is a <b style="color:var(--gold)">Direct Hit, 100 points</b>. ' +
     'Every point you are off inside ten costs 10: off by 1 scores 90, off by 2 scores 80, and so on. Miss the winner, or land outside ten, and the game scores 0. No negatives, ever. ' +
-    'The Yardstick is the posted line for the game, the market\'s collective call on the margin, shown so you can measure your call against the crowd\'s number.</div></div>';
+    'The Yardstick is the posted line for the game, the market\'s collective call on the margin, shown so you can measure your call against the crowd\'s number.<br><b>UFC fights:</b> pick the winner and the round it ends, or goes the distance. Exact round is a Direct Hit for 100, one round off scores 50, right winner with the round missed scores 25.</div></div>';
   h += memberCardHTML();
   v.innerHTML = h;
   wireMemberCard();
