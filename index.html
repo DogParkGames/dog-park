@@ -284,12 +284,22 @@ function normalizeEvent(raw, sport){
     period: (raw.status && raw.status.period) || 0,
     home: {abbr:(home.team||{}).abbreviation || "HOME", name:(home.team||{}).displayName || "Home", id:(home.team||{}).id || "", record:(home.records && home.records[0] && home.records[0].summary) || null, score: home.score === "" || home.score == null ? null : parseInt(home.score, 10), winner: !!home.winner},
     away: {abbr:(away.team||{}).abbreviation || "AWAY", name:(away.team||{}).displayName || "Away", id:(away.team||{}).id || "", record:(away.records && away.records[0] && away.records[0].summary) || null, score: away.score === "" || away.score == null ? null : parseInt(away.score, 10), winner: !!away.winner},
-    oddsDetails: odds.details || null
+    oddsDetails: odds.details || null,
+    spreadLine: (typeof odds.spread === "number" ? odds.spread : null)
   };
-  const ys = parseYardstick(ev);
-  if(ys){
-    if(ys.abbr === ev.home.abbr) ev.yardstick = {side:"home", margin:ys.margin};
-    else if(ys.abbr === ev.away.abbr) ev.yardstick = {side:"away", margin:ys.margin};
+  const cap = sport === "NHL" ? 3 : 60;
+  if(ev.spreadLine !== null && ev.spreadLine !== 0 && Math.abs(ev.spreadLine) <= cap){
+    ev.yardstick = ev.spreadLine < 0
+      ? {side:"home", margin:Math.abs(ev.spreadLine)}
+      : {side:"away", margin:Math.abs(ev.spreadLine)};
+    const fav = ev.yardstick.side === "home" ? ev.home : ev.away;
+    ev.oddsDetails = fav.abbr + " -" + ev.yardstick.margin;
+  } else {
+    const ys = parseYardstick(ev);
+    if(ys && ys.margin <= cap){
+      if(ys.abbr === ev.home.abbr) ev.yardstick = {side:"home", margin:ys.margin};
+      else if(ys.abbr === ev.away.abbr) ev.yardstick = {side:"away", margin:ys.margin};
+    }
   }
   return ev;
 }
