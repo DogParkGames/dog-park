@@ -150,7 +150,7 @@ footer{text-align:center; color:var(--mut); font-size:12.5px; margin-top:26px; l
         <li><b>Pick the winner and call the margin.</b> Your pick locks the moment the game starts.</li>
         <li><b>Scoring, the Direct Hit way:</b> call the exact margin for <b>100 points</b>. Every point you are off inside ten costs 10. Miss the winner or land outside ten and it scores 0. No negatives, ever. On a UFC fight, call the winner and the round it ends.</li>
         <li><b>One account per person.</b> Members verify with an email code, so the Park's numbers stay honest: no fake players, no spam, no stuffing the Yardstick. Your username becomes the name on your Score Card, and once it is verified it is yours alone, so nobody can be mistaken for you.</li>
-        <li><b>Guests play free</b> on their own card. Guest picks stay on this device. Join the Park and your picks count in the Yardstick and the Park standings.</li>
+        <li><b>Guests play free</b> on their own card. Guest picks stay on this device, and a guest card name stamps once and locks, like a dog tag. Join the Park and your picks count in the Yardstick and the Park standings.</li>
         <li><b>Keep usernames clean.</b> The Park is for everybody.</li>
       </ol>
       <div class="mrow">
@@ -185,7 +185,7 @@ let feed = {};    // sport -> {events:[], at:Date, error:bool}
 let refreshTimer = null;
 
 function loadSave(){
-  try{ const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if(s && s.picks) return s; }catch(e){}
+  try{ const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if(s && s.picks){ if(!s.member && s.name && s.nameLocked === undefined) s.nameLocked = true; return s; } }catch(e){}
   return {name:"", picks:{}, board:[], welcomed:false, member:null, joinPending:null, joinDraft:null};
 }
 function store(){ localStorage.setItem(SAVE_KEY, JSON.stringify(save)); }
@@ -547,6 +547,7 @@ function confirmVisible(ev, d){
   return !(saved && saved.side === d.side && saved.margin === draftMargin(ev, d));
 }
 let removeArm = {};
+let stampArm = false;
 function syncPickUI(ev){
   const d = drafts[ev.id]; if(!d) return;
   const pr = document.getElementById("pr-" + ev.id); if(pr) pr.innerHTML = pickReadHTML(ev, d);
@@ -741,7 +742,7 @@ function renderYard(){
   const keepMsg2 = keepMsg2El ? keepMsg2El.textContent : null;
   const card = myCard();
   let h = '<div class="card"><div class="rankline">MY SCORE CARD</div>' +
-    (save.member ? '<div class="joinline" style="margin:10px 0">Card name: <b>@' + esc(save.member.username) + '</b> · your verified Park name. It is yours alone, so no one can be mistaken for you.</div>' : '<div style="margin:10px 0"><input type="text" id="fanName" placeholder="Your fan name" value="' + esc(save.name) + '"></div>') +
+    (save.member ? '<div class="joinline" style="margin:10px 0">Card name: <b>@' + esc(save.member.username) + '</b> · your verified Park name. It is yours alone, so no one can be mistaken for you.</div>' : (save.nameLocked && save.name ? '<div class="joinline" style="margin:10px 0">🐾 Card name: <b>' + esc(save.name) + '</b> · stamped on your dog tag and locked. It does not change. Join the Park below and your verified @name takes over the tag for good.</div>' : '<div style="margin:10px 0"><input type="text" id="fanName" placeholder="Pick your card name" value="' + esc(save.name) + '"><div class="small mut" style="margin-top:6px">Pick carefully: stamping your dog tag locks this name to your card for good. It cannot be changed later.</div><button class="btn small" id="stampBtn">STAMP MY DOG TAG</button> <span class="small" id="stampMsg"></span></div>')) +
     '<div class="rankline">Rank: ' + rankEmoji(card.tot.points) + ' <b>' + rankTitle(card.tot.points) + '</b> · ' + card.tot.points + ' total points · ' + card.tot.dh + ' Direct Hits</div></div>';
   h += '<div class="card"><table><tr><th>LEAGUE</th><th>POINTS</th><th>PICKS</th><th>WINS</th><th>WIN %</th><th>WINS W/ PTS %</th><th>DIRECT HITS</th></tr>';
   for(const k of Object.keys(SPORTS)){
@@ -780,8 +781,15 @@ function renderYard(){
   if(keepMsg && document.getElementById("joinMsg")) document.getElementById("joinMsg").textContent = keepMsg;
   if(keepMsg2 && document.getElementById("joinMsg2")) document.getElementById("joinMsg2").textContent = keepMsg2;
   if(keep.joinUser) parkJoin.username = keep.joinUser;
-  const nameInput = document.getElementById("fanName");
-  if(nameInput) nameInput.addEventListener("change", () => { save.name = nameInput.value.trim(); store(); refresh(false); });
+  stampArm = false;
+  const stampBtn = document.getElementById("stampBtn");
+  if(stampBtn) stampBtn.addEventListener("click", () => {
+    const v = (document.getElementById("fanName").value || "").trim();
+    const msg = document.getElementById("stampMsg");
+    if(!v){ msg.textContent = "Type a name first."; return; }
+    if(!stampArm){ stampArm = true; msg.textContent = "That name is forever. Tap STAMP again to lock it in."; return; }
+    save.name = v; save.nameLocked = true; store(); refresh(false);
+  });
   document.getElementById("shareBtn").addEventListener("click", () => {
     const c = myCard();
     const text = "🐾 DOG PARK · " + c.name + " · " + rankEmoji(c.tot.points) + " " + rankTitle(c.tot.points) + "\n" + c.tot.points + " points · " + c.tot.picks + " picks · " + pct(c.tot.wins, c.tot.picks) + "% winners · " + c.tot.dh + " Direct Hits · " + trophyCase().filter(x => x.got).length + " trophies 🏆\nPick the winner. Call the margin. Measure up: https://bizzybullets.github.io/dog-park/";
