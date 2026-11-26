@@ -318,6 +318,17 @@ async function fetchSport(sport){
     feed[sport] = {events: (feed[sport] || {}).events || [], at: new Date(), error:true};
   }
 }
+function pickSideFor(pick, ev){
+  if(pick.sport === "UFC"){
+    if(pick.homeName && pick.awayName && ev.home.name === pick.awayName && ev.away.name === pick.homeName) return pick.side === "home" ? "away" : "home";
+    return pick.side;
+  }
+  if(pick.homeAbbr && pick.awayAbbr){
+    if(ev.home.abbr === pick.homeAbbr && ev.away.abbr === pick.awayAbbr) return pick.side;
+    if(ev.home.abbr === pick.awayAbbr && ev.away.abbr === pick.homeAbbr) return pick.side === "home" ? "away" : "home";
+  }
+  return pick.side;
+}
 function gradePick(pick, ev){
   if(pick.pts !== null && pick.pts !== undefined) return;
   if(ev.sport === "UFC"){
@@ -326,7 +337,7 @@ function gradePick(pick, ev){
     else if(ev.away.winner) winnerSide = "away";
     let pts = 0, dh = false;
     const act = ufcActual(ev);
-    if(winnerSide && pick.side === winnerSide){
+    if(winnerSide && pickSideFor(pick, ev) === winnerSide){
       const err = Math.abs(pick.margin - act);
       if(err === 0){ pts = 100; dh = true; }
       else if(err === 1){ pts = 50; }
@@ -345,7 +356,7 @@ function gradePick(pick, ev){
   else if(ev.away.winner || ev.away.score > ev.home.score) winnerSide = "away";
   const actualMargin = Math.abs(ev.home.score - ev.away.score);
   let pts = 0, dh = false;
-  if(winnerSide && pick.side === winnerSide){
+  if(winnerSide && pickSideFor(pick, ev) === winnerSide){
     const err = Math.abs(pick.margin - actualMargin);
     if(err <= 10){ pts = 100 - 10 * err; dh = (err === 0); }
   }
@@ -357,6 +368,7 @@ function gradeAll(events){
   for(const ev of events){
     if(ev.state === "post" && ev.completed){
       const p = save.picks[ev.id];
+      if(p && p.sport && ev.sport && p.sport !== ev.sport) continue;
       if(p && (p.pts === null || p.pts === undefined)) gradePick(p, ev);
     }
   }
@@ -435,8 +447,8 @@ function gameCard(ev){
   let body = "";
   if(!started){
     if(!drafts[ev.id]) drafts[ev.id] = ev.sport === "UFC"
-      ? (pick ? {side: pick.side, margin: pick.margin, touched: false} : {side: null, margin: ev.rounds + 1, touched: false})
-      : (pick ? {side: pick.side, dev: devFromMargin(ev, pick), touched: false} : {side: null, dev: 0, touched: false});
+      ? (pick ? {side: pick.side, margin: pick.margin, touched: false, frozen: pick.margin} : {side: null, margin: ev.rounds + 1, touched: false})
+      : (pick ? {side: pick.side, dev: devFromMargin(ev, pick), touched: false, frozen: pick.margin} : {side: null, dev: 0, touched: false});
     const d = drafts[ev.id];
     body = '<div class="pickbox">' +
       '<div class="pickbtns">' +
@@ -542,6 +554,7 @@ function devFromMargin(ev, pick){
 }
 function draftMargin(ev, d){
   if(!d.side) return null;
+  if(d.frozen !== undefined && d.frozen !== null && !d.touched) return d.frozen;
   if(ev.sport === "UFC") return d.margin || (ev.rounds + 1);
   const m = stickBase(ev, d.side) + d.dev;
   return Math.max(1, Math.min(SPORTS[ev.sport].max, m));
@@ -568,7 +581,7 @@ function pickReadHTML(ev, d){
   }
   const m = draftMargin(ev, d);
   const call = esc(d.side === "home" ? ev.home.abbr : ev.away.abbr) + ' to win by ' + m;
-  if(saved && saved.side === d.side && saved.margin === m) return 'Your pick: <b>' + call + '</b> · ' + devText(ev, d) + '<span class="saved">saved</span>';
+  if(saved && saved.side === d.side && saved.margin === m) return 'Your pick: <b>' + call + '</b><span class="saved">saved</span>';
   return 'Your call: <b>' + call + '</b> · ' + devText(ev, d) + (saved ? ' · tap UPDATE MY PICK to change your saved pick.' : ' · tap LOCK IT IN to make it count.');
 }
 function confirmVisible(ev, d){
@@ -595,12 +608,20 @@ function wirePickControls(root){
     const ev = findEvent(btn.dataset.pick); if(!ev) return;
     const d = drafts[ev.id] || (drafts[ev.id] = {side: null, dev: 0, touched: false});
     d.side = btn.dataset.side;
+    const sv = save.picks[ev.id];
+    if(sv && ev.sport !== "UFC"){
+      if(d.side === sv.side){ d.frozen = sv.margin; d.touched = false; d.dev = devFromMargin(ev, sv); }
+      else { delete d.frozen; d.dev = 0; d.touched = true; }
+    } else if(sv && ev.sport === "UFC"){
+      if(d.side === sv.side){ d.frozen = sv.margin; d.margin = sv.margin; d.touched = false; }
+      else { delete d.frozen; d.touched = true; }
+    }
     syncPickUI(ev);
   }));
   root.querySelectorAll("[data-margin]").forEach(sl => sl.addEventListener("input", () => {
     const ev = findEvent(sl.dataset.margin); if(!ev) return;
     const d = drafts[ev.id] || (drafts[ev.id] = {side: null, dev: parseInt(sl.value, 10), touched: true});
-    d.dev = parseInt(sl.value, 10); d.touched = true;
+    d.dev = parseInt(sl.value, 10); d.touched = true; delete d.frozen;
     syncPickUI(ev);
   }));
   root.querySelectorAll("[data-round]").forEach(btn => btn.addEventListener("click", () => {
@@ -612,6 +633,8 @@ function wirePickControls(root){
   root.querySelectorAll("[data-confirm]").forEach(btn => btn.addEventListener("click", () => {
     const ev = findEvent(btn.dataset.confirm); if(!ev) return;
     const d = drafts[ev.id]; if(!d || !d.side) return;
+    const svp = save.picks[ev.id];
+    if(svp && !d.touched && d.side === svp.side && draftMargin(ev, d) === svp.margin){ refresh(false); return; }
     savePick(ev, d.side, draftMargin(ev, d));
     removeArm[ev.id] = false;
     refresh(false);
@@ -620,8 +643,8 @@ function wirePickControls(root){
     const ev = findEvent(btn.dataset.clear); if(!ev) return;
     const saved = save.picks[ev.id];
     drafts[ev.id] = ev.sport === "UFC"
-      ? (saved ? {side: saved.side, margin: saved.margin, touched: false} : {side: null, margin: ev.rounds + 1, touched: false})
-      : (saved ? {side: saved.side, dev: devFromMargin(ev, saved), touched: false} : {side: null, dev: 0, touched: false});
+      ? (saved ? {side: saved.side, margin: saved.margin, touched: false, frozen: saved.margin} : {side: null, margin: ev.rounds + 1, touched: false})
+      : (saved ? {side: saved.side, dev: devFromMargin(ev, saved), touched: false, frozen: saved.margin} : {side: null, dev: 0, touched: false});
     removeArm[ev.id] = false;
     syncPickUI(ev);
   }));
