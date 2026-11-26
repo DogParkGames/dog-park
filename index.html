@@ -192,7 +192,7 @@ footer{text-align:center; color:var(--mut); font-size:12.5px; margin-top:26px; l
       <div class="parksub">Dog Park is free to play, forever. Support keeps it free and builds what comes next.</div>
       <a class="linkrow" href="https://www.gofundme.com/f/dog-park-game-studio-help-build-free-games" target="_blank" rel="noopener"><b>Dog Park Game Studio</b><br><span class="small">Help build free games. The fund covers the Google Play developer account, a domain, art and sound tools, and a work laptop.</span></a>
       <a class="linkrow" href="https://www.gofundme.com/f/help-me-found-strong-mind-grow-foundation" target="_blank" rel="noopener"><b>Strong Mind Grow Foundation</b><br><span class="small">Help found the mental health charity behind the Park. Not tax deductible yet, and we say so plainly.</span></a>
-      <div class="linkrow"><b>Supporter Pass, coming soon</b><br><span class="small">A one time pass with a gold name on the Park Board. Watch the blog for the drop.</span></div>
+      <a class="linkrow" href="https://buy.stripe.com/28E14ofAs9kl9JUe3jbQY05" target="_blank" rel="noopener"><b>Supporter Pass, $5 one time</b><br><span class="small">A gold name and paw badge on your Score Card and the Park Board, plus the Supporter trophy. Your PARK code arrives by email after checkout; redeem it under MY PARK.</span></a>
       <div class="mrow"><button class="btn ghost closeInfo">BACK TO THE PARK</button></div>
     </div>
   </div>
@@ -237,8 +237,8 @@ let feed = {};    // sport -> {events:[], at:Date, error:bool}
 let refreshTimer = null;
 
 function loadSave(){
-  try{ const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if(s && s.picks){ if(!s.member && s.name && s.nameLocked === undefined) s.nameLocked = true; return s; } }catch(e){}
-  return {name:"", picks:{}, board:[], welcomed:false, member:null, joinPending:null, joinDraft:null};
+  try{ const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if(s && s.picks){ if(s.supporter === undefined) s.supporter = false; if(!s.member && s.name && s.nameLocked === undefined) s.nameLocked = true; return s; } }catch(e){}
+  return {name:"", picks:{}, board:[], welcomed:false, member:null, joinPending:null, joinDraft:null, supporter:false};
 }
 function store(){ localStorage.setItem(SAVE_KEY, JSON.stringify(save)); }
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
@@ -734,7 +734,7 @@ function myCard(){
   const per = {}; let tot = {points:0, picks:0, wins:0, winsPts:0, dh:0};
   for(const k of Object.keys(SPORTS)){ per[k] = sportStats(k);
     tot.points += per[k].points; tot.picks += per[k].picks; tot.wins += per[k].wins; tot.winsPts += per[k].winsPts; tot.dh += per[k].dh; }
-  return {name: save.member ? "@" + save.member.username : (save.name || "A Fan"), per: per, tot: tot};
+  return {name: save.member ? "@" + save.member.username : (save.name || "A Fan"), per: per, tot: tot, sup: !!save.supporter};
 }
 function rankTitle(points){
   if(points >= 6000) return "Yardstick Master";
@@ -771,7 +771,8 @@ function trophyCase(){
     {emo:"🎯", name:"Sharpshooter", desc:"Land 5 Direct Hits", got: t.dh >= 5},
     {emo:"⭐", name:"Regular", desc:"Reach 250 total points", got: t.points >= 250},
     {emo:"👑", name:"Top Dog", desc:"Reach 3,000 total points", got: t.points >= 3000},
-    {emo:"🏆", name:"Yardstick Master", desc:"Reach 6,000 total points", got: t.points >= 6000}
+    {emo:"🏆", name:"Yardstick Master", desc:"Reach 6,000 total points", got: t.points >= 6000},
+    {emo:"🐾", name:"Park Supporter", desc:"Backed the Park with a Supporter Pass", got: !!save.supporter}
   ];
 }
 function pct(a, b){ return b ? Math.round(100 * a / b) : 0; }
@@ -794,7 +795,7 @@ function renderYard(){
   const keepMsg2 = keepMsg2El ? keepMsg2El.textContent : null;
   const card = myCard();
   let h = '<div class="card"><div class="rankline">MY SCORE CARD</div>' +
-    (save.member ? '<div class="joinline" style="margin:10px 0">Card name: <b>@' + esc(save.member.username) + '</b> · your verified Park name. It is yours alone, so no one can be mistaken for you.</div>' : (save.nameLocked && save.name ? '<div class="joinline" style="margin:10px 0">🐾 Card name: <b>' + esc(save.name) + '</b> · stamped on your dog tag and locked. It does not change. Join the Park below and your verified @name takes over the tag for good.</div>' : '<div style="margin:10px 0"><input type="text" id="fanName" placeholder="Pick your card name" value="' + esc(save.name) + '"><div class="small mut" style="margin-top:6px">Pick carefully: stamping your dog tag locks this name to your card for good. It cannot be changed later.</div><button class="btn small" id="stampBtn">STAMP MY DOG TAG</button> <span class="small" id="stampMsg"></span></div>')) +
+    (save.member ? '<div class="joinline" style="margin:10px 0">Card name: <b' + (save.supporter ? ' style="color:var(--gold)"' : '') + '>@' + esc(save.member.username) + (save.supporter ? ' 🐾' : '') + '</b> · your verified Park name. It is yours alone, so no one can be mistaken for you.</div>' : (save.nameLocked && save.name ? '<div class="joinline" style="margin:10px 0">🐾 Card name: <b' + (save.supporter ? ' style="color:var(--gold)"' : '') + '>' + esc(save.name) + (save.supporter ? ' 🐾' : '') + '</b> · stamped on your dog tag and locked. It does not change. Join the Park below and your verified @name takes over the tag for good.</div>' : '<div style="margin:10px 0"><input type="text" id="fanName" placeholder="Pick your card name" value="' + esc(save.name) + '"><div class="small mut" style="margin-top:6px">Pick carefully: stamping your dog tag locks this name to your card for good. It cannot be changed later.</div><button class="btn small" id="stampBtn">STAMP MY DOG TAG</button> <span class="small" id="stampMsg"></span></div>')) +
     '<div class="rankline">Rank: ' + rankEmoji(card.tot.points) + ' <b>' + rankTitle(card.tot.points) + '</b> · ' + card.tot.points + ' total points · ' + card.tot.dh + ' Direct Hits</div></div>';
   h += '<div class="card"><table><tr><th>LEAGUE</th><th>POINTS</th><th>PICKS</th><th>WINS</th><th>WIN %</th><th>WINS W/ PTS %</th><th>DIRECT HITS</th></tr>';
   for(const k of Object.keys(SPORTS)){
@@ -815,7 +816,7 @@ function renderYard(){
   const board = [card].concat(save.board || []).slice().sort((a, b) => b.tot.points - a.tot.points);
   h += '<div class="card"><div class="rankline">THE PARK BOARD</div><table><tr><th>RANK</th><th>FAN</th><th>TITLE</th><th>POINTS</th><th>PICKS</th><th>WIN %</th><th>DIRECT HITS</th></tr>';
   board.forEach((c, i) => { const medal = i === 0 ? "🏆" : i === 1 ? "🥈" : i === 2 ? "🥉" : String(i + 1);
-    h += '<tr><td>' + medal + '</td><td>' + esc(c.name) + (c.name === card.name ? " (you)" : "") + '</td><td>' + rankEmoji(c.tot.points) + ' ' + rankTitle(c.tot.points) + '</td><td>' + c.tot.points + '</td><td>' + c.tot.picks + '</td><td>' + pct(c.tot.wins, c.tot.picks) + '%</td><td>' + c.tot.dh + '</td></tr>'; });
+    h += '<tr><td>' + medal + '</td><td>' + esc(c.name) + (c.sup ? ' <span style="color:var(--gold)">🐾</span>' : '') + (c.name === card.name ? " (you)" : "") + '</td><td>' + rankEmoji(c.tot.points) + ' ' + rankTitle(c.tot.points) + '</td><td>' + c.tot.points + '</td><td>' + c.tot.picks + '</td><td>' + pct(c.tot.wins, c.tot.picks) + '%</td><td>' + c.tot.dh + '</td></tr>'; });
   h += '</table><div class="small mut" style="margin-top:8px">Trade season codes with friends: their card joins your board, yours joins theirs. The weekly leaderboard lives on Facebook, cards posted every Monday.</div>' +
     '<button class="btn" id="shareBtn">SHARE MY CARD</button> <button class="btn ghost" id="copyBtn">COPY MY SEASON CODE</button> <button class="btn ghost" id="cardImgBtn">SHARE MY DOG TAG CARD</button>' +
     '<div class="sharebox" id="shareBox"></div>' +
@@ -826,6 +827,7 @@ function renderYard(){
     'Every point you are off inside ten costs 10: off by 1 scores 90, off by 2 scores 80, and so on. Miss the winner, or land outside ten, and the game scores 0. No negatives, ever. ' +
     'The Yardstick is the posted line for the game, the market\'s collective call on the margin, shown so you can measure your call against the crowd\'s number.<br><b>UFC fights:</b> pick the winner and the round it ends, or goes the distance. Exact round is a Direct Hit for 100, one round off scores 50, right winner with the round missed scores 25.</div></div>';
   h += memberCardHTML();
+  h += supporterCardHTML();
   v.innerHTML = h;
   wireMemberCard();
   ["joinUser", "joinEmail", "joinCode"].forEach(id => { const el = document.getElementById(id); if(el && keep[id]) el.value = keep[id]; });
@@ -933,9 +935,32 @@ function memberCardHTML(){
     '<button class="btn" id="joinVerify">VERIFY MY ACCOUNT</button> <span class="small" id="joinMsg2"></span></div>' +
     '<div style="margin-top:10px"><button class="btn ghost small" id="rulesBtn">PARK RULES</button></div></div>';
 }
+function validParkCode(code){
+  const A = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  if(!/^PARK-[A-Z0-9]{6}$/.test(code)) return false;
+  const body = code.slice(5, 10), chk = code.charAt(10);
+  let sum = 137;
+  for(let i = 0; i < 5; i++){ const idx = A.indexOf(body.charAt(i)); if(idx < 0) return false; sum += (i + 1) * idx; }
+  return A.charAt(sum % A.length) === chk;
+}
+function supporterCardHTML(){
+  if(save.supporter) return '<div class="card"><div class="rankline">🐾 SUPPORTER PASS</div><div class="joinline" style="margin-top:6px"><b style="color:var(--gold)">Park Supporter</b> · thanks for backing the Park. Your gold name and paw badge are on.</div></div>';
+  return '<div class="card"><div class="rankline">🐾 SUPPORTER PASS</div>' +
+    '<div class="joinline" style="margin-top:6px">Back the Park for <b>$5, one time</b>: a gold name and paw badge on your Score Card and the Park Board, plus the Supporter trophy. The game stays free for everyone, always.</div>' +
+    '<a class="btn" href="https://buy.stripe.com/28E14ofAs9kl9JUe3jbQY05" target="_blank" rel="noopener" style="text-decoration:none; display:inline-block">GET THE PASS</a>' +
+    '<div style="margin-top:12px"><input type="text" id="passCode" placeholder="Pass code from your email (PARK-XXXXXX)" maxlength="11"></div>' +
+    '<button class="btn ghost small" id="passBtn">REDEEM MY CODE</button> <span class="small" id="passMsg"></span></div>';
+}
 function wireMemberCard(){
   const rb = document.getElementById("rulesBtn");
   if(rb) rb.addEventListener("click", () => showWelcome());
+  const pb = document.getElementById("passBtn");
+  if(pb) pb.addEventListener("click", () => {
+    const code = (document.getElementById("passCode").value || "").trim().toUpperCase();
+    const msg = document.getElementById("passMsg");
+    if(validParkCode(code)){ save.supporter = true; store(); refresh(false); }
+    else if(msg) msg.textContent = "That code does not check out. Codes look like PARK-XXXXXX and arrive by email after checkout.";
+  });
   if(save.member || !PARK_API) return;
   const jd = () => { if(!save.joinDraft) save.joinDraft = {user:"", email:"", code:"", optIn:false, step2:false}; return save.joinDraft; };
   const juEl = document.getElementById("joinUser"), jeEl = document.getElementById("joinEmail"), jcEl = document.getElementById("joinCode"), joEl = document.getElementById("joinOptIn");
