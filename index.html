@@ -36,10 +36,22 @@ nav.sports button .dot{display:inline-block; width:8px; height:8px; border-radiu
 .card{background:linear-gradient(180deg,var(--panel2),var(--panel)); border:1px solid var(--line); border-radius:16px; padding:16px; margin:0 0 14px}
 .game{padding:14px 16px}
 .teams{display:grid; grid-template-columns:1fr auto 1fr; gap:8px; align-items:center}
-.team{text-align:center}
+.team{text-align:center; cursor:pointer}
 .team .abbr{font-family:Oswald,sans-serif; font-size:26px; font-weight:700; letter-spacing:1px}
 .team .tname{color:var(--mut); font-size:12.5px; font-weight:700; line-height:1.25}
-.team .score{font-family:Oswald,sans-serif; font-size:30px; color:var(--gold)}
+.team .rec{color:var(--gold); font-size:12px; font-weight:900}
+.team .statslink{color:var(--blue); font-size:11px; font-weight:900; letter-spacing:.5px}
+.infopanel{margin-top:12px; border:1px solid var(--line); border-radius:12px; background:#12151a; padding:12px 14px; text-align:left}
+.infopanel h4{font-family:Oswald,sans-serif; letter-spacing:1px; font-size:16px; margin-bottom:6px}
+.infopanel .venue{color:var(--mut); font-size:12px; font-weight:700; margin-bottom:8px}
+.leaderline{font-size:13px; font-weight:700; padding:3px 0; border-bottom:1px dashed #232833}
+.leaderline span{color:var(--mut)}
+.statgrid{display:grid; grid-template-columns:1fr 1fr; gap:4px 16px; margin-top:8px}
+.statgrid div{display:flex; justify-content:space-between; font-size:13px; font-weight:700}
+.statgrid div span{color:var(--mut)}
+.formchip{display:inline-block; width:22px; height:22px; line-height:22px; text-align:center; border-radius:6px; font-size:12px; font-weight:900; margin-right:4px; background:#2a3040}
+.formchip.w{background:var(--green-d); color:#fff}
+.formchip.l{background:#6e3434; color:#fff}
 .center{text-align:center; min-width:86px}
 .center .ys{font-family:Oswald,sans-serif; font-size:24px; color:var(--ink)}
 .center .yslab{font-size:10px; letter-spacing:2px; color:var(--mut); font-weight:900}
@@ -162,8 +174,8 @@ function normalizeEvent(raw, sport){
     detail: st.shortDetail || st.detail || "",
     clock: (raw.status && raw.status.displayClock) || "",
     period: (raw.status && raw.status.period) || 0,
-    home: {abbr:(home.team||{}).abbreviation || "HOME", name:(home.team||{}).displayName || "Home", score: home.score === "" || home.score == null ? null : parseInt(home.score, 10), winner: !!home.winner},
-    away: {abbr:(away.team||{}).abbreviation || "AWAY", name:(away.team||{}).displayName || "Away", score: away.score === "" || away.score == null ? null : parseInt(away.score, 10), winner: !!away.winner},
+    home: {abbr:(home.team||{}).abbreviation || "HOME", name:(home.team||{}).displayName || "Home", id:(home.team||{}).id || "", record:(home.records && home.records[0] && home.records[0].summary) || null, score: home.score === "" || home.score == null ? null : parseInt(home.score, 10), winner: !!home.winner},
+    away: {abbr:(away.team||{}).abbreviation || "AWAY", name:(away.team||{}).displayName || "Away", id:(away.team||{}).id || "", record:(away.records && away.records[0] && away.records[0].summary) || null, score: away.score === "" || away.score == null ? null : parseInt(away.score, 10), winner: !!away.winner},
     oddsDetails: odds.details || null
   };
   const ys = parseYardstick(ev);
@@ -271,10 +283,10 @@ function gameCard(ev){
     body = '<div class="result">Your pick: ' + esc(pick.side === "home" ? ev.home.abbr : ev.away.abbr) + ' to win by ' + pick.margin + '</div>';
   }
   return '<div class="card game"><div class="teams">' +
-    '<div class="team"><div class="abbr">' + esc(ev.away.abbr) + '</div><div class="tname">' + esc(ev.away.name) + '</div></div>' +
+    '<div class="team" data-info="' + ev.id + '" data-side="away"><div class="abbr">' + esc(ev.away.abbr) + '</div><div class="tname">' + esc(ev.away.name) + '</div>' + (ev.away.record ? '<div class="rec">' + esc(ev.away.record) + '</div>' : '') + '<div class="statslink">TEAM STATS ›</div></div>' +
     '<div class="center">' + center + '</div>' +
-    '<div class="team"><div class="abbr">' + esc(ev.home.abbr) + '</div><div class="tname">' + esc(ev.home.name) + '</div></div>' +
-    '</div><div class="meta">' + meta + '</div>' + body + '</div>';
+    '<div class="team" data-info="' + ev.id + '" data-side="home"><div class="abbr">' + esc(ev.home.abbr) + '</div><div class="tname">' + esc(ev.home.name) + '</div>' + (ev.home.record ? '<div class="rec">' + esc(ev.home.record) + '</div>' : '') + '<div class="statslink">TEAM STATS ›</div></div>' +
+    '</div><div class="meta">' + meta + '</div><div class="infopanel" id="info-' + ev.id + '" style="display:none"></div>' + body + '</div>';
 }
 function renderNav(){
   const nav = document.getElementById("sportNav");
@@ -302,7 +314,7 @@ function renderSport(sport){
   if(!f.events.length){ v.innerHTML = '<div class="card">No games on the board right now for ' + SPORTS[sport].label + '. Check back on game day.</div>'; return; }
   const sorted = f.events.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
   v.innerHTML = sorted.map(gameCard).join("");
-  wirePickControls(v);
+  wirePickControls(v); wireInfo(v);
 }
 function renderLive(){
   const v = document.getElementById("view");
@@ -310,7 +322,7 @@ function renderLive(){
   for(const k of Object.keys(SPORTS)){ for(const ev of (feed[k] || {}).events || []) if(ev.state === "in") live.push(ev); }
   if(!live.length){ v.innerHTML = '<div class="card" style="text-align:center"><b>No games are live this minute.</b><br><span class="mut">When a game tips off, kicks off or drops the puck, it shows up here with the score and clock, refreshing on its own.</span></div>'; return; }
   v.innerHTML = '<h2 class="sec">LIVE SCORING WATCH</h2>' + live.map(gameCard).join("");
-  wirePickControls(v);
+  wirePickControls(v); wireInfo(v);
 }
 function wirePickControls(root){
   root.querySelectorAll("[data-pick]").forEach(btn => btn.addEventListener("click", () => {
@@ -325,8 +337,55 @@ function wirePickControls(root){
     const id = sl.dataset.margin;
     const mv = document.getElementById("mv-" + id); if(mv) mv.textContent = sl.value;
     const p = save.picks[id];
-    if(p){ p.margin = parseInt(sl.value, 10); store(); const pr = document.getElementById("pr-" + id); if(pr) pr.innerHTML = 'Your pick: <b>' + esc(p.side === "home" ? p.homeAbbr : p.awayAbbr) + ' to win by ' + p.margin + '</b><span class="saved">saved</span>'; }
+    const pr = document.getElementById("pr-" + id);
+    if(p){ p.margin = parseInt(sl.value, 10); store(); if(pr) pr.innerHTML = 'Your pick: <b>' + esc(p.side === "home" ? p.homeAbbr : p.awayAbbr) + ' to win by ' + p.margin + '</b><span class="saved">saved</span>'; }
+    else if(pr){ const ev = findEvent(id); if(ev) pr.innerHTML = 'Margin set to <b>' + sl.value + '</b>. Now tap <b>' + esc(ev.away.abbr) + ' wins</b> or <b>' + esc(ev.home.abbr) + ' wins</b> above to lock it in.'; }
   }));
+}
+let summaries = {};
+let openInfo = {};
+async function toggleInfo(id, side){
+  const ev = findEvent(id); if(!ev) return;
+  const panel = document.getElementById("info-" + id); if(!panel) return;
+  if(openInfo[id] === side){ panel.style.display = "none"; openInfo[id] = null; return; }
+  openInfo[id] = side;
+  panel.style.display = "block";
+  panel.innerHTML = '<span class="mut">Loading team info...</span>';
+  if(!summaries[id]){
+    try{
+      const r = await fetch(API + SPORTS[ev.sport].path + "/summary?event=" + id);
+      summaries[id] = await r.json();
+    }catch(e){ summaries[id] = null; }
+  }
+  if(openInfo[id] !== side) return;
+  panel.innerHTML = buildTeamInfo(ev, side, summaries[id]);
+}
+function buildTeamInfo(ev, side, data){
+  const t = side === "home" ? ev.home : ev.away;
+  let h = '<h4>' + esc(t.name) + (t.record ? ' · <span style="color:var(--gold)">' + esc(t.record) + '</span>' : '') + '</h4>';
+  if(!data) return h + '<div class="mut small">The stats feed did not answer for this game. Try again in a bit.</div>';
+  const venue = data.gameInfo && data.gameInfo.venue && data.gameInfo.venue.fullName;
+  if(venue) h += '<div class="venue">📍 ' + esc(venue) + '</div>';
+  const l5 = (data.lastFiveGames || []).find(x => String((x.team || {}).id) === String(t.id));
+  if(l5 && l5.events && l5.events.length){
+    h += '<div style="margin:6px 0">' + l5.events.map(e => '<span class="formchip ' + (e.gameResult === "W" ? "w" : "l") + '">' + esc(e.gameResult || "?") + '</span>').join("") + '<span class="mut small" style="margin-left:4px">last five</span></div>';
+  }
+  const tl = (data.leaders || []).find(x => (x.team || {}).abbreviation === t.abbr);
+  if(tl && tl.leaders){
+    for(const cat of tl.leaders.slice(0, 3)){
+      const ld = (cat.leaders || [])[0] || {};
+      h += '<div class="leaderline"><span>' + esc(cat.displayName || "") + ':</span> ' + esc((ld.athlete || {}).displayName || "") + ' · ' + esc(ld.displayValue || "") + '</div>';
+    }
+  }
+  const bt = ((data.boxscore || {}).teams || []).find(x => (x.team || {}).abbreviation === t.abbr);
+  if(bt && bt.statistics && bt.statistics.length){
+    h += '<div class="statgrid">' + bt.statistics.slice(0, 6).map(s => '<div><span>' + esc(s.label || s.name || "") + '</span><b>' + esc(s.displayValue || "") + '</b></div>').join("") + '</div>';
+  }
+  if(h.indexOf("leaderline") === -1 && h.indexOf("statgrid") === -1) h += '<div class="mut small">No team stats posted for this game yet.</div>';
+  return h;
+}
+function wireInfo(root){
+  root.querySelectorAll("[data-info]").forEach(el => el.addEventListener("click", () => toggleInfo(el.dataset.info, el.dataset.side)));
 }
 function findEvent(id){
   for(const k of Object.keys(feed)){ const ev = (feed[k].events || []).find(e => e.id === id); if(ev) return ev; }
