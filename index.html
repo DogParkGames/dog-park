@@ -135,7 +135,15 @@ footer{text-align:center; color:var(--mut); font-size:12.5px; margin-top:26px; l
 .linkrow .small{color:var(--mut)}
 .checkline{display:flex; gap:8px; align-items:flex-start; text-align:left; font-size:13.5px; font-weight:700; margin-top:10px}
 .checkline input{margin-top:3px}
-@media (max-width:560px){ .team .abbr{font-size:21px} .center{min-width:64px} .center .ys{font-size:19px} }
+.tblwrap{overflow-x:auto; -webkit-overflow-scrolling:touch}
+.tblwrap table{min-width:540px}
+.pickrow{display:flex; justify-content:space-between; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); align-items:flex-start}
+.pickmain{font-size:14px; line-height:1.45}
+.pickstat{text-align:right; font-size:13px; max-width:46%}
+@media (max-width:560px){ .team .abbr{font-size:21px} .center{min-width:64px} .center .ys{font-size:19px}
+  th,td{padding:7px 5px} table{font-size:13px} th{font-size:10.5px; letter-spacing:.5px}
+  .statbar{grid-template-columns:86px 1fr 38px; font-size:12px; gap:6px}
+  .rankline{font-size:17px} .pickmain{font-size:13px} .pickstat{font-size:12px} }
 </style>
 </head>
 <body>
@@ -544,8 +552,8 @@ function renderLive(){
   const v = document.getElementById("view");
   let live = [];
   for(const k of Object.keys(SPORTS)){ for(const ev of (feed[k] || {}).events || []) if(ev.state === "in") live.push(ev); }
-  if(!live.length){ v.innerHTML = '<div class="card" style="text-align:center"><b>No games are live this minute.</b><br><span class="mut">When a game tips off, kicks off or drops the puck, it shows up here with the score and clock, refreshing on its own.</span></div>'; return; }
-  v.innerHTML = '<h2 class="sec">LIVE SCORING WATCH</h2>' + parkLineHTML(live.map(e => e.id)) + live.map(gameCard).join("");
+  if(!live.length){ v.innerHTML = lockedPicksHTML() + '<div class="card" style="text-align:center"><b>No games are live this minute.</b><br><span class="mut">When a game tips off, kicks off or drops the puck, it shows up here with the score and clock, refreshing on its own.</span></div>'; return; }
+  v.innerHTML = '<h2 class="sec">LIVE SCORING WATCH</h2>' + lockedPicksHTML() + parkLineHTML(live.map(e => e.id)) + live.map(gameCard).join("");
   wirePickControls(v); wireInfo(v);
 }
 let drafts = {};
@@ -776,6 +784,33 @@ function trophyCase(){
   ];
 }
 function pct(a, b){ return b ? Math.round(100 * a / b) : 0; }
+function pickCallText(p, ev){
+  const abbr = p.side === "home" ? p.homeAbbr : p.awayAbbr;
+  if(p.sport === "UFC"){
+    if(ev && p.margin === ev.rounds + 1) return abbr + " by DISTANCE";
+    if(!ev && p.margin >= 6) return abbr + " by DISTANCE";
+    return abbr + " in Round " + p.margin;
+  }
+  return abbr + " by " + p.margin;
+}
+function lockedPicksHTML(){
+  const items = Object.keys(save.picks).map(id => ({id: id, p: save.picks[id], ev: findEvent(id)}));
+  if(!items.length) return "";
+  const rank = it => (it.ev && it.ev.state === "in") ? 0 : ((it.p.pts === null || it.p.pts === undefined) ? 1 : 2);
+  items.sort((a, b) => (rank(a) - rank(b)) || (new Date(a.p.date) - new Date(b.p.date)));
+  let h = '<div class="card"><div class="rankline">\U0001f512 MY LOCKED PICKS \u00b7 LIVE</div>';
+  for(const it of items.slice(0, 12)){
+    const p = it.p, ev = it.ev;
+    let status;
+    if(p.pts !== null && p.pts !== undefined) status = '<b style="color:var(--gold)">' + p.pts + ' PTS</b>' + (p.dh ? ' \u00b7 \U0001f48e DIRECT HIT' : '') + (p.finalScore ? '<br><span class="mut">' + esc(p.finalScore) + '</span>' : '');
+    else if(ev && ev.state === "in") status = '<span class="live">\u25cf LIVE</span> ' + esc(ev.away.abbr) + ' ' + (ev.away.score != null ? ev.away.score : "") + ' \u00b7 ' + esc(ev.home.abbr) + ' ' + (ev.home.score != null ? ev.home.score : "") + (ev.detail ? '<br><span class="mut">' + esc(ev.detail) + '</span>' : '');
+    else if(ev && ev.state === "post") status = '<span class="mut">Final, grading\u2026</span>';
+    else status = '<span class="mut">Locked \u00b7 ' + fmtTime(p.date) + '</span>';
+    h += '<div class="pickrow"><div class="pickmain"><b>' + esc(p.awayAbbr) + ' at ' + esc(p.homeAbbr) + '</b> <span class="mut">' + (SPORTS[p.sport] ? SPORTS[p.sport].label : p.sport) + '</span><br><span class="mut">Your call:</span> <b>' + pickCallText(p, ev) + '</b></div><div class="pickstat">' + status + '</div></div>';
+  }
+  h += '<div class="small mut" style="margin-top:6px">Updates on its own as scores come in. A pick counts once it is locked in.</div></div>';
+  return h;
+}
 function statBars(label, rows){
   let h = '<div class="card"><div class="rankline">' + label + '</div>';
   for(const r of rows){
@@ -797,12 +832,13 @@ function renderYard(){
   let h = '<div class="card"><div class="rankline">MY SCORE CARD</div>' +
     (save.member ? '<div class="joinline" style="margin:10px 0">Card name: <b' + (save.supporter ? ' style="color:var(--gold)"' : '') + '>@' + esc(save.member.username) + (save.supporter ? ' 🐾' : '') + '</b> · your verified Park name. It is yours alone, so no one can be mistaken for you.</div>' : (save.nameLocked && save.name ? '<div class="joinline" style="margin:10px 0">🐾 Card name: <b' + (save.supporter ? ' style="color:var(--gold)"' : '') + '>' + esc(save.name) + (save.supporter ? ' 🐾' : '') + '</b> · stamped on your dog tag and locked. It does not change. Join the Park below and your verified @name takes over the tag for good.</div>' : '<div style="margin:10px 0"><input type="text" id="fanName" placeholder="Pick your card name" value="' + esc(save.name) + '"><div class="small mut" style="margin-top:6px">Pick carefully: stamping your dog tag locks this name to your card for good. It cannot be changed later.</div><button class="btn small" id="stampBtn">STAMP MY DOG TAG</button> <span class="small" id="stampMsg"></span></div>')) +
     '<div class="rankline">Rank: ' + rankEmoji(card.tot.points) + ' <b>' + rankTitle(card.tot.points) + '</b> · ' + card.tot.points + ' total points · ' + card.tot.dh + ' Direct Hits</div></div>';
-  h += '<div class="card"><table><tr><th>LEAGUE</th><th>POINTS</th><th>PICKS</th><th>WINS</th><th>WIN %</th><th>WINS W/ PTS %</th><th>DIRECT HITS</th></tr>';
+  h += lockedPicksHTML();
+  h += '<div class="card"><div class="tblwrap"><table><tr><th>LEAGUE</th><th>POINTS</th><th>PICKS</th><th>WINS</th><th>WIN %</th><th>PTS WIN %</th><th>DIRECT HITS</th></tr>';
   for(const k of Object.keys(SPORTS)){
     const s = card.per[k];
     h += '<tr><td>' + SPORTS[k].label + '</td><td>' + s.points + '</td><td>' + s.picks + '</td><td>' + s.wins + '</td><td>' + pct(s.wins, s.picks) + '%</td><td>' + pct(s.winsPts, s.picks) + '%</td><td>' + s.dh + '</td></tr>';
   }
-  h += '<tr style="font-weight:900"><td>ALL PARKS</td><td>' + card.tot.points + '</td><td>' + card.tot.picks + '</td><td>' + card.tot.wins + '</td><td>' + pct(card.tot.wins, card.tot.picks) + '%</td><td>' + pct(card.tot.winsPts, card.tot.picks) + '%</td><td>' + card.tot.dh + '</td></tr></table></div>';
+  h += '<tr style="font-weight:900"><td>ALL PARKS</td><td>' + card.tot.points + '</td><td>' + card.tot.picks + '</td><td>' + card.tot.wins + '</td><td>' + pct(card.tot.wins, card.tot.picks) + '%</td><td>' + pct(card.tot.winsPts, card.tot.picks) + '%</td><td>' + card.tot.dh + '</td></tr></table></div></div>';
   const rows = [];
   for(const k of Object.keys(SPORTS)){ const s = card.per[k]; if(s.picks) rows.push([SPORTS[k].label + " WIN %", pct(s.wins, s.picks)]); }
   if(rows.length) h += statBars("MY PREDICTION PERCENTS", rows);
@@ -814,11 +850,11 @@ function renderYard(){
     tc.map(x => '<div class="trophy' + (x.got ? '' : ' locked') + '"><div class="emo">' + x.emo + '</div><div class="tname">' + x.name + '</div><div class="tdesc">' + x.desc + '</div></div>').join("") + '</div></div>';
   // Yard Board
   const board = [card].concat(save.board || []).slice().sort((a, b) => b.tot.points - a.tot.points);
-  h += '<div class="card"><div class="rankline">THE PARK BOARD</div><table><tr><th>RANK</th><th>FAN</th><th>TITLE</th><th>POINTS</th><th>PICKS</th><th>WIN %</th><th>DIRECT HITS</th></tr>';
+  h += '<div class="card"><div class="rankline">THE PARK BOARD</div><div class="tblwrap"><table><tr><th>RANK</th><th>FAN</th><th>TITLE</th><th>POINTS</th><th>PICKS</th><th>WIN %</th><th>DIRECT HITS</th></tr>';
   board.forEach((c, i) => { const medal = i === 0 ? "🏆" : i === 1 ? "🥈" : i === 2 ? "🥉" : String(i + 1);
     h += '<tr><td>' + medal + '</td><td>' + esc(c.name) + (c.sup ? ' <span style="color:var(--gold)">🐾</span>' : '') + (c.name === card.name ? " (you)" : "") + '</td><td>' + rankEmoji(c.tot.points) + ' ' + rankTitle(c.tot.points) + '</td><td>' + c.tot.points + '</td><td>' + c.tot.picks + '</td><td>' + pct(c.tot.wins, c.tot.picks) + '%</td><td>' + c.tot.dh + '</td></tr>'; });
   if(save.invitedBy) h += '<div class="card"><div class="joinline">🐾 You came in on <b>' + esc(save.invitedBy) + '</b>\'s invite, so their card is already on your Park Board below. Make your picks, then send your own invite link and grow your board.</div></div>';
-  h += '</table><div class="small mut" style="margin-top:8px">Send your invite link: one tap puts your card on a friend\'s Park Board and brings them into the game. Season codes still work too. The weekly leaderboard lives on Facebook, cards posted every Monday.</div>' +
+  h += '</table></div><div class="small mut" style="margin-top:8px">Send your invite link: one tap puts your card on a friend\'s Park Board and brings them into the game. Season codes still work too. The weekly leaderboard lives on Facebook, cards posted every Monday.</div>' +
     '<button class="btn" id="inviteBtn">INVITE A PLAYER</button> <button class="btn ghost" id="shareBtn">SHARE MY CARD</button> <button class="btn ghost" id="cardImgBtn">DOG TAG CARD IMAGE</button> <button class="btn ghost" id="copyBtn">COPY MY SEASON CODE</button>' +
     '<div class="sharebox" id="shareBox"></div>' +
     '<div style="margin-top:14px"><input type="text" id="importBox" placeholder="Paste a friend\'s DP- season code"></div>' +
