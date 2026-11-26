@@ -128,6 +128,11 @@ footer{text-align:center; color:var(--mut); font-size:12.5px; margin-top:26px; l
 .rulelist li{margin:7px 0 7px 18px}
 .mrow{display:flex; gap:10px; margin-top:10px}
 .mrow .btn{flex:1; margin-top:0}
+.footlinks{text-align:center; margin-bottom:8px}
+.footlinks button{background:none; border:none; color:var(--gold); font-weight:900; letter-spacing:.1em; cursor:pointer; font-size:13px; padding:4px 10px; font-family:inherit}
+.linkrow{display:block; background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin:8px 0; color:var(--text); text-decoration:none; text-align:left}
+.linkrow b{color:var(--gold)}
+.linkrow .small{color:var(--mut)}
 .checkline{display:flex; gap:8px; align-items:flex-start; text-align:left; font-size:13.5px; font-weight:700; margin-top:10px}
 .checkline input{margin-top:3px}
 @media (max-width:560px){ .team .abbr{font-size:21px} .center{min-width:64px} .center .ys{font-size:19px} }
@@ -160,7 +165,39 @@ footer{text-align:center; color:var(--mut); font-size:12.5px; margin-top:26px; l
       <div class="small mut" style="margin-top:10px">Free to play, bragging rights only.</div>
     </div>
   </div>
+  <div class="modal" id="sitesModal" style="display:none">
+    <div class="modalbox">
+      <div class="logo">OUR <span class="y">SITES</span></div>
+      <div class="parksub">Everything under the Dog Park umbrella.</div>
+      <a class="linkrow" href="https://dogparkgames.blogspot.com/" target="_blank" rel="noopener"><b>Dog Park Blog</b><br><span class="small">News, standings and the Game Yard. The weekly leaderboard lives here.</span></a>
+      <a class="linkrow" href="https://github.com/DogParkGames" target="_blank" rel="noopener"><b>Dog Park on GitHub</b><br><span class="small">The game itself, open for anyone to see how the Park is built.</span></a>
+      <a class="linkrow" href="https://creature-construct.blogspot.com/" target="_blank" rel="noopener"><b>Creature Construct</b><br><span class="small">Creature Constructive Words: the replica I control, word for word the original.</span></a>
+      <a class="linkrow" href="https://creatureconstruct.blogspot.com/" target="_blank" rel="noopener"><b>Creature Construct, the original</b><br><span class="small">The 2026 original blog, read only. Home of the memorial page.</span></a>
+      <div class="mrow"><button class="btn ghost closeInfo">BACK TO THE PARK</button></div>
+    </div>
+  </div>
+  <div class="modal" id="contactModal" style="display:none">
+    <div class="modalbox">
+      <div class="logo">CONTACT <span class="y">THE PARK</span></div>
+      <div class="parksub">Questions, bad lines, account help, ideas.</div>
+      <a class="linkrow" href="mailto:strongmindgrow@gmail.com"><b>Email the Park</b><br><span class="small">strongmindgrow@gmail.com, the fastest way to reach me.</span></a>
+      <a class="linkrow" href="https://dogparkgames.blogspot.com/" target="_blank" rel="noopener"><b>Game talk on the blog</b><br><span class="small">Rival talk and callouts live in the comments on the standings posts.</span></a>
+      <a class="linkrow" href="https://github.com/DogParkGames" target="_blank" rel="noopener"><b>GitHub</b><br><span class="small">Found a bug in the game? The code and its issues live here.</span></a>
+      <div class="mrow"><button class="btn ghost closeInfo">BACK TO THE PARK</button></div>
+    </div>
+  </div>
+  <div class="modal" id="supportModal" style="display:none">
+    <div class="modalbox">
+      <div class="logo">SUPPORT <span class="y">THE PARK</span></div>
+      <div class="parksub">Dog Park is free to play, forever. Support keeps it free and builds what comes next.</div>
+      <a class="linkrow" href="https://www.gofundme.com/f/dog-park-game-studio-help-build-free-games" target="_blank" rel="noopener"><b>Dog Park Game Studio</b><br><span class="small">Help build free games. The fund covers the Google Play developer account, a domain, art and sound tools, and a work laptop.</span></a>
+      <a class="linkrow" href="https://www.gofundme.com/f/help-me-found-strong-mind-grow-foundation" target="_blank" rel="noopener"><b>Strong Mind Grow Foundation</b><br><span class="small">Help found the mental health charity behind the Park. Not tax deductible yet, and we say so plainly.</span></a>
+      <div class="linkrow"><b>Supporter Pass, coming soon</b><br><span class="small">A one time pass with a gold name on the Park Board. Watch the blog for the drop.</span></div>
+      <div class="mrow"><button class="btn ghost closeInfo">BACK TO THE PARK</button></div>
+    </div>
+  </div>
   <footer>
+    <div class="footlinks"><button id="sitesBtn">SITES</button><button id="contactBtn">CONTACT</button><button id="supportBtn">SUPPORT</button></div>
     Dog Park, a revival of the classic pick'em yard, rebuilt for today's fan.<br>
     Free to play, bragging rights only. Scores and schedules update live from the ESPN feed.
   </footer>
@@ -942,6 +979,18 @@ function wireWelcome(){
   if(join) join.addEventListener("click", () => { hideWelcome(); view = "YARD"; refresh(true); });
   if(guest) guest.addEventListener("click", () => { save.welcomed = true; store(); hideWelcome(); });
 }
+function wireInfoPages(){
+  [["sitesBtn","sitesModal"],["contactBtn","contactModal"],["supportBtn","supportModal"]].forEach(([b, mid]) => {
+    const btn = document.getElementById(b);
+    const modal = document.getElementById(mid);
+    if(btn && modal) btn.addEventListener("click", () => { modal.style.display = "flex"; });
+    if(modal){
+      const cb = modal.querySelector(".closeInfo");
+      if(cb) cb.addEventListener("click", () => { modal.style.display = "none"; });
+      modal.addEventListener("click", e => { if(e.target === modal) modal.style.display = "none"; });
+    }
+  });
+}
 function drawCardImage(){
   const c = myCard();
   const tcount = trophyCase().filter(x => x.got).length;
@@ -1062,6 +1111,7 @@ function scheduleAuto(){
 refresh(true);
 scheduleAuto();
 wireWelcome();
+wireInfoPages();
 if(!save.member && !save.welcomed) showWelcome();
 </script>
 </body>
