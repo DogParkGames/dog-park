@@ -179,7 +179,7 @@ let refreshTimer = null;
 
 function loadSave(){
   try{ const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if(s && s.picks) return s; }catch(e){}
-  return {name:"", picks:{}, board:[], welcomed:false, member:null};
+  return {name:"", picks:{}, board:[], welcomed:false, member:null, joinPending:null};
 }
 function store(){ localStorage.setItem(SAVE_KEY, JSON.stringify(save)); }
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
@@ -578,6 +578,14 @@ function statBars(label, rows){
 }
 function renderYard(){
   const v = document.getElementById("view");
+  const keep = {};
+  ["joinUser", "joinEmail", "joinCode"].forEach(id => { const el = document.getElementById(id); if(el) keep[id] = el.value; });
+  const keepStep2El = document.getElementById("joinStep2");
+  const keepStep2 = keepStep2El ? keepStep2El.style.display : null;
+  const keepMsgEl = document.getElementById("joinMsg");
+  const keepMsg = keepMsgEl ? keepMsgEl.textContent : null;
+  const keepMsg2El = document.getElementById("joinMsg2");
+  const keepMsg2 = keepMsg2El ? keepMsg2El.textContent : null;
   const card = myCard();
   let h = '<div class="card"><div class="rankline">MY SCORE CARD</div>' +
     '<div style="margin:10px 0"><input type="text" id="fanName" placeholder="Your fan name" value="' + esc(save.name) + '"></div>' +
@@ -614,6 +622,11 @@ function renderYard(){
   h += memberCardHTML();
   v.innerHTML = h;
   wireMemberCard();
+  ["joinUser", "joinEmail", "joinCode"].forEach(id => { const el = document.getElementById(id); if(el && keep[id]) el.value = keep[id]; });
+  if(keepStep2 && document.getElementById("joinStep2")) document.getElementById("joinStep2").style.display = keepStep2;
+  if(keepMsg && document.getElementById("joinMsg")) document.getElementById("joinMsg").textContent = keepMsg;
+  if(keepMsg2 && document.getElementById("joinMsg2")) document.getElementById("joinMsg2").textContent = keepMsg2;
+  if(keep.joinUser) parkJoin.username = keep.joinUser;
   const nameInput = document.getElementById("fanName");
   nameInput.addEventListener("change", () => { save.name = nameInput.value.trim(); store(); refresh(false); });
   document.getElementById("shareBtn").addEventListener("click", () => {
@@ -697,11 +710,11 @@ function memberCardHTML(){
   }
   return '<div class="card"><div class="rankline">🌳 JOIN THE PARK</div>' +
     '<div class="joinline">Member picks build the real Park Yardstick and the standings. One account per person, verified by an email code, so the numbers stay honest.</div>' +
-    '<input type="text" id="joinUser" placeholder="Pick a username (3 to 16 letters, numbers, _)" maxlength="16">' +
+    '<input type="text" id="joinUser" placeholder="Pick a username (3 to 16 letters, numbers, _)" maxlength="16" value="' + esc(save.joinPending ? save.joinPending.username : "") + '">' +
     '<input type="text" id="joinEmail" placeholder="Your email, for the verification code" style="margin-top:8px">' +
     '<label class="checkline"><input type="checkbox" id="joinOptIn"> Email me the weekly Park standings and the week ahead</label>' +
     '<button class="btn" id="joinSend">EMAIL ME MY CODE</button> <span class="small" id="joinMsg"></span>' +
-    '<div id="joinStep2" style="display:none;margin-top:12px"><input type="text" id="joinCode" placeholder="6 digit code from your email" maxlength="6">' +
+    '<div id="joinStep2" style="display:' + (save.joinPending ? "block" : "none") + ';margin-top:12px"><input type="text" id="joinCode" placeholder="6 digit code from your email" maxlength="6">' +
     '<button class="btn" id="joinVerify">VERIFY MY ACCOUNT</button> <span class="small" id="joinMsg2"></span></div>' +
     '<div style="margin-top:10px"><button class="btn ghost small" id="rulesBtn">PARK RULES</button></div></div>';
 }
@@ -717,7 +730,7 @@ function wireMemberCard(){
     const msg = document.getElementById("joinMsg");
     msg.textContent = "Sending...";
     parkPost({action:"register", username: username, email: email, optIn: optIn}).then(res => {
-      if(res.ok){ parkJoin = {sentTo: email, username: username}; document.getElementById("joinStep2").style.display = "block"; msg.textContent = "Code sent. Check your email, it is good for 15 minutes."; }
+      if(res.ok){ parkJoin = {sentTo: email, username: username}; save.joinPending = {username: username}; store(); document.getElementById("joinStep2").style.display = "block"; msg.textContent = "Code sent. Check your email, it is good for 15 minutes."; }
       else msg.textContent = res.why || "That did not go through.";
     });
   });
@@ -726,10 +739,12 @@ function wireMemberCard(){
     const code = document.getElementById("joinCode").value.trim();
     const msg2 = document.getElementById("joinMsg2");
     msg2.textContent = "Checking...";
-    parkPost({action:"verify", username: parkJoin.username, code: code}).then(res => {
+    const vuser = (document.getElementById("joinUser").value.trim() || parkJoin.username);
+    parkPost({action:"verify", username: vuser, code: code}).then(res => {
       if(res.ok && res.token){
-        save.member = {username: parkJoin.username, token: res.token};
-        if(!save.name) save.name = parkJoin.username;
+        save.member = {username: vuser, token: res.token};
+        if(!save.name) save.name = vuser;
+        save.joinPending = null;
         save.welcomed = true; store();
         for(const id of Object.keys(save.picks)){ const p = save.picks[id]; if(p.pts === null || p.pts === undefined){ const ev = findEvent(id); if(ev && ev.state === "pre") parkPostPick(ev); } }
         refresh(false);
@@ -771,6 +786,7 @@ async function refresh(rerender){
 function scheduleAuto(){
   if(refreshTimer) clearInterval(refreshTimer);
   refreshTimer = setInterval(() => {
+    if(view === "YARD") return;
     let anyLive = false;
     for(const k of Object.keys(feed)){ for(const ev of feed[k].events || []) if(ev.state === "in") anyLive = true; }
     if(view === "LIVE" || anyLive) refresh(false);
