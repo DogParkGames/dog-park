@@ -567,18 +567,22 @@ function stickFor(ev, side){
   const s = stickSigned(ev);
   return side === "home" ? s : -s;
 }
+function stickBase(ev, side){
+  const s = stickFor(ev, side);
+  return s > 0 ? Math.round(s) : 1;
+}
 function devFromMargin(ev, pick){
-  return pick.margin - Math.round(stickFor(ev, pick.side));
+  return pick.margin - stickBase(ev, pick.side);
 }
 function draftMargin(ev, d){
   if(!d.side) return null;
   if(ev.sport === "UFC") return d.margin || (ev.rounds + 1);
-  const m = Math.round(stickFor(ev, d.side)) + d.dev;
+  const m = stickBase(ev, d.side) + d.dev;
   return Math.max(1, Math.min(SPORTS[ev.sport].max, m));
 }
 function devText(ev, d){
   const m = draftMargin(ev, d); if(m === null) return "";
-  const eff = m - stickFor(ev, d.side);
+  const eff = m - stickBase(ev, d.side);
   const a = Math.abs(eff); const as = (Math.round(a * 10) / 10).toString();
   if(eff === 0) return "right on the Yardstick";
   return eff > 0 ? "+" + as + " over the Yardstick" : as + " under the Yardstick";
@@ -798,11 +802,11 @@ function lockedPicksHTML(){
   if(!items.length) return "";
   const rank = it => (it.ev && it.ev.state === "in") ? 0 : ((it.p.pts === null || it.p.pts === undefined) ? 1 : 2);
   items.sort((a, b) => (rank(a) - rank(b)) || (new Date(a.p.date) - new Date(b.p.date)));
-  let h = '<div class="card"><div class="rankline">\U0001f512 MY LOCKED PICKS \u00b7 LIVE</div>';
+  let h = '<div class="card"><div class="rankline">🔒 MY LOCKED PICKS \u00b7 LIVE</div>';
   for(const it of items.slice(0, 12)){
     const p = it.p, ev = it.ev;
     let status;
-    if(p.pts !== null && p.pts !== undefined) status = '<b style="color:var(--gold)">' + p.pts + ' PTS</b>' + (p.dh ? ' \u00b7 \U0001f48e DIRECT HIT' : '') + (p.finalScore ? '<br><span class="mut">' + esc(p.finalScore) + '</span>' : '');
+    if(p.pts !== null && p.pts !== undefined) status = '<b style="color:var(--gold)">' + p.pts + ' PTS</b>' + (p.dh ? ' \u00b7 💎 DIRECT HIT' : '') + (p.finalScore ? '<br><span class="mut">' + esc(p.finalScore) + '</span>' : '');
     else if(ev && ev.state === "in") status = '<span class="live">\u25cf LIVE</span> ' + esc(ev.away.abbr) + ' ' + (ev.away.score != null ? ev.away.score : "") + ' \u00b7 ' + esc(ev.home.abbr) + ' ' + (ev.home.score != null ? ev.home.score : "") + (ev.detail ? '<br><span class="mut">' + esc(ev.detail) + '</span>' : '');
     else if(ev && ev.state === "post") status = '<span class="mut">Final, grading\u2026</span>';
     else status = '<span class="mut">Locked \u00b7 ' + fmtTime(p.date) + '</span>';
