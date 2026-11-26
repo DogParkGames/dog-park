@@ -1218,8 +1218,7 @@ function render(){
   else renderSport(view);
 }
 async function refresh(rerender){
-  if(view === "LIVE"){ await Promise.all(Object.keys(SPORTS).map(fetchSport)); }
-  else if(view !== "YARD"){ await fetchSport(view); }
+  await Promise.all(Object.keys(SPORTS).map(fetchSport));
   let ids = [];
   if(view === "LIVE"){ for(const k of Object.keys(SPORTS)) for(const ev of (feed[k] || {}).events || []) if(ev.state === "in") ids.push(ev.id); }
   else if(view !== "YARD"){ ids = ((feed[view] || {}).events || []).map(e => e.id); }
@@ -1229,7 +1228,14 @@ async function refresh(rerender){
 function scheduleAuto(){
   if(refreshTimer) clearInterval(refreshTimer);
   refreshTimer = setInterval(() => {
-    if(view === "YARD") return;
+    if(view === "YARD"){
+      const before = JSON.stringify(Object.keys(save.picks).map(id => save.picks[id].pts));
+      Promise.all(Object.keys(SPORTS).map(fetchSport)).then(() => {
+        const after = JSON.stringify(Object.keys(save.picks).map(id => save.picks[id].pts));
+        if(before !== after) render();
+      });
+      return;
+    }
     let anyLive = false;
     for(const k of Object.keys(feed)){ for(const ev of feed[k].events || []) if(ev.state === "in") anyLive = true; }
     if(view === "LIVE" || anyLive) refresh(false);
