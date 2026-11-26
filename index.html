@@ -765,7 +765,7 @@ function renderYard(){
   board.forEach((c, i) => { const medal = i === 0 ? "🏆" : i === 1 ? "🥈" : i === 2 ? "🥉" : String(i + 1);
     h += '<tr><td>' + medal + '</td><td>' + esc(c.name) + (c.name === card.name ? " (you)" : "") + '</td><td>' + rankEmoji(c.tot.points) + ' ' + rankTitle(c.tot.points) + '</td><td>' + c.tot.points + '</td><td>' + c.tot.picks + '</td><td>' + pct(c.tot.wins, c.tot.picks) + '%</td><td>' + c.tot.dh + '</td></tr>'; });
   h += '</table><div class="small mut" style="margin-top:8px">Trade season codes with friends: their card joins your board, yours joins theirs. The weekly leaderboard lives on Facebook, cards posted every Monday.</div>' +
-    '<button class="btn" id="shareBtn">SHARE MY CARD</button> <button class="btn ghost" id="copyBtn">COPY MY SEASON CODE</button> <button class="btn ghost" id="cardImgBtn">CARD IMAGE FOR FACEBOOK</button>' +
+    '<button class="btn" id="shareBtn">SHARE MY CARD</button> <button class="btn ghost" id="copyBtn">COPY MY SEASON CODE</button> <button class="btn ghost" id="cardImgBtn">SHARE MY DOG TAG CARD</button>' +
     '<div class="sharebox" id="shareBox"></div>' +
     '<div style="margin-top:14px"><input type="text" id="importBox" placeholder="Paste a friend\'s DP- season code"></div>' +
     '<button class="btn ghost small" id="importBtn">ADD TO THE BOARD</button> <span class="small" id="importMsg"></span></div>';
@@ -941,58 +941,91 @@ function wireWelcome(){
 function drawCardImage(){
   const c = myCard();
   const tcount = trophyCase().filter(x => x.got).length;
-  const cv = document.createElement("canvas"); cv.width = 1000; cv.height = 560;
-  const x = cv.getContext("2d");
-  const g = x.createLinearGradient(0, 0, 0, 560); g.addColorStop(0, "#232833"); g.addColorStop(1, "#14171c");
-  x.fillStyle = g; x.fillRect(0, 0, 1000, 560);
-  x.strokeStyle = "#2fbf71"; x.lineWidth = 6; x.strokeRect(10, 10, 980, 540);
-  x.fillStyle = "#f2c14e";
-  x.beginPath(); x.ellipse(906, 96, 44, 32, 0, 0, Math.PI * 2); x.fill();
-  [[862, 44, 15, 21], [890, 30, 16, 23], [920, 30, 16, 23], [948, 44, 15, 21]].forEach(t => { x.beginPath(); x.ellipse(t[0], t[1], t[2], t[3], 0, 0, Math.PI * 2); x.fill(); });
-  x.fillStyle = "#f2f4f6"; x.font = "700 62px Oswald, sans-serif"; x.textAlign = "left";
-  x.fillText("DOG PARK", 48, 100);
-  x.fillStyle = "#9aa6b5"; x.font = "800 21px Nunito, sans-serif";
-  x.fillText("M Y   S C O R E   C A R D", 50, 138);
-  x.fillStyle = "#f2c14e"; x.font = "700 52px Oswald, sans-serif";
-  x.fillText(String(c.name).slice(0, 24), 48, 208);
-  x.fillStyle = "#f2f4f6"; x.font = "800 29px Nunito, sans-serif";
-  x.fillText(rankTitle(c.tot.points) + "  ·  " + c.tot.points + " total points", 50, 252);
-  const stats = [["POINTS", c.tot.points], ["PICKS", c.tot.picks], ["WIN %", pct(c.tot.wins, c.tot.picks) + "%"], ["DIRECT HITS", c.tot.dh]];
-  stats.forEach((s, i) => {
-    const bx = 48 + i * 228;
-    x.fillStyle = "#12151a"; x.fillRect(bx, 286, 212, 108);
-    x.strokeStyle = "#313947"; x.lineWidth = 2; x.strokeRect(bx, 286, 212, 108);
-    x.fillStyle = "#9aa6b5"; x.font = "800 19px Nunito, sans-serif"; x.fillText(s[0], bx + 18, 322);
-    x.fillStyle = "#f2f4f6"; x.font = "700 46px Oswald, sans-serif"; x.fillText(String(s[1]), bx + 18, 374);
-  });
-  x.fillStyle = "#f2f4f6"; x.font = "800 26px Nunito, sans-serif";
-  x.fillText("Trophies: " + tcount + " of 9 earned", 50, 448);
-  x.fillStyle = "#1d7a47"; x.fillRect(10, 486, 980, 64);
-  x.fillStyle = "#eafff3"; x.font = "900 25px Nunito, sans-serif"; x.textAlign = "center";
-  x.fillText("Pick the winner. Call the margin. Measure up.", 500, 527);
-  x.textAlign = "left";
   const box = document.getElementById("shareBox");
-  box.style.display = "block"; box.textContent = "Making your card image...";
-  cv.toBlob(blob => {
-    if(!blob){ box.textContent = "The image did not render on this device. The season code still works."; return; }
-    const url = URL.createObjectURL(blob);
-    const file = new File([blob], "dog-park-score-card.png", {type: "image/png"});
-    box.textContent = "";
-    const img = document.createElement("img");
-    img.src = url; img.style.width = "100%"; img.style.borderRadius = "8px"; img.alt = "My Dog Park score card";
-    box.appendChild(img);
-    const note = document.createElement("div");
-    note.className = "small"; note.style.marginTop = "8px";
-    note.textContent = "That is your Score Card as a picture, the kind Facebook shows properly. Share it, or save it and post it.";
-    box.appendChild(note);
-    const a = document.createElement("a");
-    a.href = url; a.download = "dog-park-score-card.png"; a.className = "btn ghost small"; a.style.marginTop = "8px"; a.textContent = "SAVE THE IMAGE";
-    box.appendChild(a);
-    const text = "🐾 DOG PARK · " + c.name + " · " + rankTitle(c.tot.points) + "\n" + c.tot.points + " points · " + c.tot.picks + " picks · " + pct(c.tot.wins, c.tot.picks) + "% winners · " + c.tot.dh + " Direct Hits · " + tcount + " trophies\nPick the winner. Call the margin. Measure up: https://bizzybullets.github.io/dog-park/";
-    if(navigator.canShare && navigator.canShare({files: [file]})){
-      navigator.share({files: [file], title: "Dog Park", text: text}).catch(() => {});
+  box.style.display = "block"; box.textContent = "Stamping your Dog Tag card...";
+  const logo = new Image();
+  let started = false;
+  const go = () => { if(started) return; started = true; paint(logo.complete && logo.naturalWidth ? logo : null); };
+  logo.onload = go; logo.onerror = go;
+  logo.src = "dog-park-logo.png";
+  setTimeout(go, 1200);
+  function rr(x, a, b, w, h, r){
+    x.beginPath();
+    x.moveTo(a + r, b);
+    x.arcTo(a + w, b, a + w, b + h, r);
+    x.arcTo(a + w, b + h, a, b + h, r);
+    x.arcTo(a, b + h, a, b, r);
+    x.arcTo(a, b, a + w, b, r);
+    x.closePath();
+  }
+  function paint(logoImg){
+    const cv = document.createElement("canvas"); cv.width = 1000; cv.height = 560;
+    const x = cv.getContext("2d");
+    const g = x.createLinearGradient(0, 0, 0, 560); g.addColorStop(0, "#232833"); g.addColorStop(1, "#14171c");
+    x.fillStyle = g; x.fillRect(0, 0, 1000, 560);
+    x.strokeStyle = "#f2c14e"; x.lineWidth = 4; x.strokeRect(8, 8, 984, 544);
+    x.strokeStyle = "#2fbf71"; x.lineWidth = 2; x.strokeRect(18, 18, 964, 524);
+    let tx = 48;
+    if(logoImg){ x.drawImage(logoImg, 36, 28, 118, 118); tx = 172; }
+    x.fillStyle = "#f2f4f6"; x.font = "700 58px Oswald, sans-serif"; x.textAlign = "left";
+    x.fillText("DOG PARK", tx, 92);
+    x.fillStyle = "#f2c14e"; x.font = "800 20px Nunito, sans-serif";
+    x.fillText("D O G   T A G   S C O R E   C A R D", tx + 2, 128);
+    x.fillStyle = "#f2c14e";
+    x.beginPath(); x.ellipse(906, 96, 44, 32, 0, 0, Math.PI * 2); x.fill();
+    [[862, 44, 15, 21], [890, 30, 16, 23], [920, 30, 16, 23], [948, 44, 15, 21]].forEach(t => { x.beginPath(); x.ellipse(t[0], t[1], t[2], t[3], 0, 0, Math.PI * 2); x.fill(); });
+    x.strokeStyle = "#aab4bf"; x.lineWidth = 5;
+    for(let i = 0; i <= 10; i++){
+      const px = 330 + i * 34;
+      const py = 158 - Math.sin((i / 10) * Math.PI) * 16;
+      x.beginPath(); x.arc(px, py, 7, 0, Math.PI * 2); x.stroke();
     }
-  }, "image/png");
+    const tg = x.createLinearGradient(0, 168, 0, 272); tg.addColorStop(0, "#d7dee5"); tg.addColorStop(0.5, "#aeb8c2"); tg.addColorStop(1, "#8d97a3");
+    rr(x, 250, 168, 500, 104, 52);
+    x.fillStyle = tg; x.fill();
+    x.strokeStyle = "#5c6670"; x.lineWidth = 3; x.stroke();
+    x.beginPath(); x.arc(292, 220, 11, 0, Math.PI * 2); x.fillStyle = "#23272e"; x.fill();
+    x.fillStyle = "#23272e"; x.font = "700 42px Oswald, sans-serif"; x.textAlign = "center";
+    x.fillText(String(c.name).toUpperCase().slice(0, 22), 512, 234);
+    x.textAlign = "left";
+    x.fillStyle = "#f2f4f6"; x.font = "800 28px Nunito, sans-serif";
+    x.fillText(rankTitle(c.tot.points) + "  ·  " + c.tot.points + " total points", 50, 330);
+    x.fillStyle = "#f2c14e"; x.font = "800 24px Nunito, sans-serif"; x.textAlign = "right";
+    x.fillText("Trophies: " + tcount + " of 9", 950, 330);
+    x.textAlign = "left";
+    const stats = [["POINTS", c.tot.points], ["PICKS", c.tot.picks], ["WIN %", pct(c.tot.wins, c.tot.picks) + "%"], ["DIRECT HITS", c.tot.dh]];
+    stats.forEach((s, i) => {
+      const bx = 48 + i * 228;
+      x.fillStyle = "#12151a"; x.fillRect(bx, 352, 212, 100);
+      x.strokeStyle = "#313947"; x.lineWidth = 2; x.strokeRect(bx, 352, 212, 100);
+      x.fillStyle = "#9aa6b5"; x.font = "800 18px Nunito, sans-serif"; x.fillText(s[0], bx + 18, 386);
+      x.fillStyle = "#f2f4f6"; x.font = "700 44px Oswald, sans-serif"; x.fillText(String(s[1]), bx + 18, 434);
+    });
+    x.fillStyle = "#1d7a47"; x.fillRect(18, 478, 964, 64);
+    x.fillStyle = "#eafff3"; x.font = "900 24px Nunito, sans-serif"; x.textAlign = "center";
+    x.fillText("Pick the winner. Call the margin. Measure up.", 500, 519);
+    x.textAlign = "left";
+    cv.toBlob(blob => {
+      if(!blob){ box.textContent = "The image did not render on this device. The season code still works."; return; }
+      const url = URL.createObjectURL(blob);
+      const file = new File([blob], "dog-park-dog-tag-card.png", {type: "image/png"});
+      box.textContent = "";
+      const img = document.createElement("img");
+      img.src = url; img.style.width = "100%"; img.style.borderRadius = "8px"; img.alt = "My Dog Park Dog Tag score card";
+      box.appendChild(img);
+      const note = document.createElement("div");
+      note.className = "small"; note.style.marginTop = "8px";
+      note.textContent = "That is your Dog Tag Score Card, the picture made for Facebook posts. Post it with your season code so friends can pull your card onto their Park Board.";
+      box.appendChild(note);
+      const a = document.createElement("a");
+      a.href = url; a.download = "dog-park-dog-tag-card.png"; a.className = "btn ghost small"; a.style.marginTop = "8px"; a.textContent = "SAVE THE IMAGE";
+      box.appendChild(a);
+      const text = "🐾 MY DOG TAG SCORE CARD · " + c.name + " · " + rankTitle(c.tot.points) + "\n" + c.tot.points + " points · " + c.tot.picks + " picks · " + pct(c.tot.wins, c.tot.picks) + "% winners · " + c.tot.dh + " Direct Hits · " + tcount + " trophies\nPick the winner. Call the margin. Measure up: https://bizzybullets.github.io/dog-park/";
+      if(navigator.canShare && navigator.canShare({files: [file]})){
+        navigator.share({files: [file], title: "Dog Park Dog Tag Score Card", text: text}).catch(() => {});
+      }
+    }, "image/png");
+  }
 }
 function seasonCode(){
   const c = myCard();
