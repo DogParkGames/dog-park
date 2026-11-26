@@ -196,8 +196,23 @@ footer{text-align:center; color:var(--mut); font-size:12.5px; margin-top:26px; l
       <div class="mrow"><button class="btn ghost closeInfo">BACK TO THE PARK</button></div>
     </div>
   </div>
+  <div class="modal" id="faqModal" style="display:none">
+    <div class="modalbox">
+      <div class="logo">PARK <span class="y">FAQs</span></div>
+      <div class="parksub">The questions every new pup asks.</div>
+      <div class="linkrow"><b>Is Dog Park free?</b><br><span class="small">Yes. Free to play, forever. No entry fees, no cash prizes, bragging rights only.</span></div>
+      <div class="linkrow"><b>How do I play?</b><br><span class="small">Pick the winner of each game and call the winning margin with the slider. Your pick locks the moment the game starts. On a UFC fight, pick the winner and the round it ends.</span></div>
+      <div class="linkrow"><b>How does scoring work?</b><br><span class="small">The Direct Hit way: call the exact margin for 100 points. Land inside ten and every point you are off costs 10. Miss the winner or land outside ten and it scores 0. No negatives, ever. UFC: exact round 100, one round off 50, right winner with the round missed 25.</span></div>
+      <div class="linkrow"><b>What is the Yardstick?</b><br><span class="small">The Park's projected margin. It starts at the posted line and every member pick moves it. Once a game has three or more member picks, the Park Yardstick becomes the line you play against.</span></div>
+      <div class="linkrow"><b>Why join the Park?</b><br><span class="small">Guest picks stay on your own device. Members verify with an email code, and their picks count in the Yardstick and the standings. Your verified @name is yours alone, nobody else can take it.</span></div>
+      <div class="linkrow"><b>Can I change my card name?</b><br><span class="small">Guest names stamp once and lock, like a dog tag. When you verify, your @name takes over the tag for good.</span></div>
+      <div class="linkrow"><b>What are season codes?</b><br><span class="small">Your Score Card makes a DP code. Trade codes with friends and their cards join your Park Board, yours joins theirs.</span></div>
+      <div class="linkrow"><b>Is this gambling?</b><br><span class="small">No. No money in, no prizes of value out. Points, trophies and bragging rights only.</span></div>
+      <div class="mrow"><button class="btn ghost closeInfo">BACK TO THE PARK</button></div>
+    </div>
+  </div>
   <footer>
-    <div class="footlinks"><button id="sitesBtn">SITES</button><button id="contactBtn">CONTACT</button><button id="supportBtn">SUPPORT</button></div>
+    <div class="footlinks"><button id="sitesBtn">SITES</button><button id="contactBtn">CONTACT</button><button id="supportBtn">SUPPORT</button><button id="faqBtn">FAQ</button></div>
     Dog Park, a revival of the classic pick'em yard, rebuilt for today's fan.<br>
     Free to play, bragging rights only. Scores and schedules update live from the ESPN feed.
   </footer>
@@ -980,7 +995,7 @@ function wireWelcome(){
   if(guest) guest.addEventListener("click", () => { save.welcomed = true; store(); hideWelcome(); });
 }
 function wireInfoPages(){
-  [["sitesBtn","sitesModal"],["contactBtn","contactModal"],["supportBtn","supportModal"]].forEach(([b, mid]) => {
+  [["sitesBtn","sitesModal"],["contactBtn","contactModal"],["supportBtn","supportModal"],["faqBtn","faqModal"]].forEach(([b, mid]) => {
     const btn = document.getElementById(b);
     const modal = document.getElementById(mid);
     if(btn && modal) btn.addEventListener("click", () => { modal.style.display = "flex"; });
