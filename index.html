@@ -928,6 +928,10 @@ function wireMemberCard(){
 }
 function showWelcome(){
   const m = document.getElementById("welcomeModal"); if(m) m.style.display = "flex";
+  const join = document.getElementById("joinBtn");
+  const guest = document.getElementById("guestBtn");
+  if(join) join.style.display = save.member ? "none" : "";
+  if(guest) guest.textContent = save.member ? "BACK TO THE PARK" : "PLAY AS GUEST";
 }
 function hideWelcome(){
   const m = document.getElementById("welcomeModal"); if(m) m.style.display = "none";
