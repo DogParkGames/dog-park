@@ -1279,7 +1279,8 @@ function myGraphsHTML(){
     const avgPts = Math.round(10 * all.reduce((s, x) => s + x.p.pts, 0) / all.length) / 10;
     h += '<div class="small" style="font-weight:800;letter-spacing:.05em;margin-top:6px">MY CALL vs THE RESULT</div><div class="small mut"><span style="color:var(--green)">\u275a</span> my call <span style="color:var(--gold)">\u275a</span> the result</div>';
     h += '<div class="small mut">Your whole archive: ' + all.length + ' graded pick' + (all.length === 1 ? "" : "s") + ' · ' + dhN + ' Direct Hit' + (dhN === 1 ? "" : "s") + ' · ' + avgPts + ' pts per pick on average. A minus result means your team lost by that many.</div>';
-    for(const x of all){
+    if(all.length > 30) h += '<div class="small mut">Bars show your last 30 graded picks; the summary above covers the whole archive.</div>';
+    for(const x of all.slice(0, 30)){
       const res = x.p.sport === "UFC" ? x.p.actualMargin : (x.p.win ? x.p.actualMargin : -x.p.actualMargin);
       const lab = x.p.sport === "UFC" ? (x.p.awayName + " vs " + x.p.homeName) : (x.p.awayAbbr + " at " + x.p.homeAbbr);
       h += '<div class="gbar"><span class="glab">' + esc(lab) + '</span><span class="dual"><span class="dfill" style="width:' + Math.round(100 * x.p.margin / mx) + '%;background:var(--green)"></span><span class="dfill" style="width:' + Math.round(100 * x.p.actualMargin / mx) + '%;background:var(--gold)"></span></span><span class="gval">' + x.p.margin + ' vs ' + res + ' · ' + x.p.pts + ' pts' + (x.p.dh ? ' 🏆' : '') + '</span></div>';
@@ -1288,15 +1289,13 @@ function myGraphsHTML(){
   const leans = [];
   for(const x of graded){
     if(x.p.sport === "UFC") continue;
-    const ev = findEvent(x.id);
-    if(!ev || !ev.yardstick) continue;
-    const sf = stickFor(ev, x.p.side);
-    const ref = sf > 0 ? sf : 1;
-    leans.push({label: x.p.awayAbbr + " at " + x.p.homeAbbr, eff: Math.round(10 * (x.p.margin - ref)) / 10});
-    if(leans.length >= 8) break;
+    if(x.p.lineCall === null || x.p.lineCall === undefined) continue;
+    const ref = x.p.side === "home" ? x.p.lineCall : -x.p.lineCall;
+    leans.push({label: (x.p.awayAbbr || "") + " at " + (x.p.homeAbbr || ""), eff: Math.round(10 * (x.p.margin - ref)) / 10});
+    if(leans.length >= 12) break;
   }
   if(leans.length){
-    h += '<div class="small" style="font-weight:800;letter-spacing:.05em;margin-top:8px">MY LEAN vs THE LINE</div><div class="small mut">under the line \u2190 \u00b7 \u2192 over the line</div>';
+    h += '<div class="small" style="font-weight:800;letter-spacing:.05em;margin-top:8px">MY LEAN vs THE LINE</div><div class="small mut">under the line \u2190 \u00b7 \u2192 over the line \u00b7 read from the line saved when each pick graded, so finished games stay on the graph</div>';
     for(const L of leans){
       const w = Math.min(50, Math.abs(L.eff) / 10 * 50);
       const left = L.eff >= 0 ? 50 : 50 - w;
@@ -2001,16 +2000,17 @@ async function refresh(rerender){
 function scheduleAuto(){
   if(refreshTimer) clearInterval(refreshTimer);
   refreshTimer = setInterval(() => {
-    if(view === "YARD"){
+    if(view === "YARD" || view === "PAGE" || SPORTS[view]){
       const before = JSON.stringify(Object.keys(save.picks).map(id => save.picks[id].pts));
-      const parkBefore = JSON.stringify(Object.keys(parkData).map(id => [id, parkData[id].n, parkData[id].ysSigned]));
+      const parkFP = () => JSON.stringify(Object.keys(parkData).map(id => [id, parkData[id].n, parkData[id].ysSigned, parkData[id].homeN, parkData[id].awayN]));
+      const scoreFP = () => JSON.stringify(Object.keys(feed).map(k => (feed[k].events || []).map(ev => [ev.id, ev.state, ev.away.score, ev.home.score])));
+      const parkBefore = parkFP(), scoreBefore = scoreFP();
       Promise.all(Object.keys(SPORTS).map(fetchSport)).then(async () => {
         let ids = [];
         for(const k of Object.keys(SPORTS)) for(const ev of (feed[k] || {}).events || []) ids.push(ev.id);
         if(ids.length) await fetchPark(ids);
         const after = JSON.stringify(Object.keys(save.picks).map(id => save.picks[id].pts));
-        const parkAfter = JSON.stringify(Object.keys(parkData).map(id => [id, parkData[id].n, parkData[id].ysSigned]));
-        if(before !== after || parkBefore !== parkAfter) render();
+        if(before !== after || parkBefore !== parkFP() || scoreBefore !== scoreFP()) render();
       });
       return;
     }
