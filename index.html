@@ -181,7 +181,7 @@ footer{text-align:center; color:var(--mut); font-size:12.5px; margin-top:26px; l
         <li><b>Pick the winner and call the margin.</b> Your pick locks the moment the game starts.</li>
         <li><b>Scoring, the Direct Hit way:</b> call the exact margin for <b>100 points</b>. Every point you are off inside ten costs 10. Miss the winner or land outside ten and it scores 0. No negatives, ever. On a UFC fight, call the winner and the round it ends.</li>
         <li><b>One account per person.</b> Members verify with an email code, so the Park's numbers stay honest: no fake players, no spam, no stuffing the Yardstick. Your username becomes the name on your Score Card, and once it is verified it is yours alone, so nobody can be mistaken for you.</li>
-        <li><b>Guests play free</b> on their own card. Guest picks count in the Park averages anonymously, one voice per device per game, and a guest card name stamps once and locks, like a dog tag. Join the Park and your picks count under your own @name, on your Score Card and the Park Board.</li>
+        <li><b>Guests play free</b> on their own card. A guest card name stamps once and locks, like a dog tag. Guest picks stay on your own card only and never touch the community numbers. Join the Park and your picks count in the Park Yardstick and standings under your own @name, on your Score Card and the Park Board.</li>
         <li><b>Keep usernames clean.</b> The Park is for everybody.</li>
       </ol>
       <div class="mrow">
@@ -658,7 +658,7 @@ function parkMeterHTML(){
     }
     h += '</div>';
   }
-  h += '<div class="small mut" style="margin-top:4px">Member and guest picks both move the meter. Guests count anonymously, one voice per device per game.</div></div>';
+  h += '<div class="small mut" style="margin-top:4px">Only verified member picks move the meter. Guest picks stay on their own card.</div></div>';
   return h;
 }
 function renderLive(){
@@ -1150,17 +1150,15 @@ function parkPost(payload){
 function parkPostPick(ev){
   const p = save.picks[ev.id]; if(!p) return;
   if(save.member) parkPost({username: save.member.username, token: save.member.token, gameId: ev.id, sport: ev.sport, side: p.side, margin: p.margin, gameStart: ev.date});
-  else if(save.guestId) parkPost({guest: save.guestId, gameId: ev.id, sport: ev.sport, side: p.side, margin: p.margin, gameStart: ev.date});
 }
 function parkRemovePick(ev){
   if(save.member) parkPost({action: "removePick", username: save.member.username, token: save.member.token, gameId: ev.id});
-  else if(save.guestId) parkPost({action: "removePick", guest: save.guestId, gameId: ev.id});
 }
 function parkLineHTML(ids){
   if(!PARK_API) return "";
   let n = 0, games = 0;
   for(const id of ids){ const pg = parkData[id]; if(pg && pg.n){ n += pg.n; games++; } }
-  if(!games) return '<div class="card joinline" style="text-align:center">🌳 <b>The Park Brain is live.</b> <span class="mut">No Park picks on this board yet. Members and guests set the Park Yardstick.</span></div>';
+  if(!games) return '<div class="card joinline" style="text-align:center">🌳 <b>The Park Brain is live.</b> <span class="mut">No Park picks on this board yet. Verified members set the Park Yardstick.</span></div>';
   return '<div class="card joinline" style="text-align:center">🌳 <b>The Park Brain:</b> ' + n + ' member pick' + (n === 1 ? "" : "s") + ' across ' + games + ' game' + (games === 1 ? "" : "s") + ' on this board.</div>';
 }
 function memberCardHTML(){
