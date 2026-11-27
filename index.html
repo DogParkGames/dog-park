@@ -540,7 +540,84 @@ function gameCard(ev){
     '<div class="team" data-info="' + ev.id + '" data-side="away"><div class="abbr">' + esc(ev.away.abbr) + '</div><div class="tname">' + esc(ev.away.name) + '</div>' + (ev.away.record ? '<div class="rec">' + esc(ev.away.record) + '</div>' : '') + (ev.sport === "UFC" ? '' : '<div class="statslink">TEAM STATS ›</div>') + '</div>' +
     '<div class="center">' + center + '</div>' +
     '<div class="team" data-info="' + ev.id + '" data-side="home"><div class="abbr">' + esc(ev.home.abbr) + '</div><div class="tname">' + esc(ev.home.name) + '</div>' + (ev.home.record ? '<div class="rec">' + esc(ev.home.record) + '</div>' : '') + (ev.sport === "UFC" ? '' : '<div class="statslink">TEAM STATS ›</div>') + '</div>' +
-    '</div>' + (!started && ev.sport !== "UFC" ? yardstickRuler(ev) : '') + '<div class="meta">' + meta + '</div><div class="infopanel" id="info-' + ev.id + '" style="display:none"></div>' + body + '</div>';
+    '</div>' + (!started && ev.sport !== "UFC" ? yardstickRuler(ev) : '') + '<div class="meta">' + meta + '</div><div class="infopanel" id="info-' + ev.id + '" style="display:none"></div>' + body + talkHTML(ev) + '</div>';
+}
+const talkCache = {};
+let calloutTarget = "";
+function talkHTML(ev){
+  return '<div style="margin-top:10px;border-top:1px dashed var(--line);padding-top:8px"><button class="btn ghost small" data-talk="' + ev.id + '">\ud83d\udcac GAME TALK</button><div id="talk-' + ev.id + '" style="display:none;margin-top:8px"></div></div>';
+}
+function talkRowHTML(m){
+  const when = m.ts ? new Date(m.ts).toLocaleTimeString([], {hour: "numeric", minute: "2-digit"}) : "";
+  return '<div style="margin-top:7px"><b>@' + esc(m.user) + '</b>' + (m.target ? ' <span class="mut">\ud83d\udce3 calling out</span> <b>@' + esc(m.target) + '</b>' : '') + ' <span class="small mut">' + when + '</span><br>' + esc(m.text) + '</div>';
+}
+async function fetchTalkFeed(scope){
+  if(!PARK_API) return;
+  const had = !!talkCache[scope];
+  try{ const r = await fetch(PARK_API + "?talk=" + encodeURIComponent(scope)); const res = await r.json(); if(res && res.ok) talkCache[scope] = res.talk || []; }catch(e){}
+  if(!had && view === "YARD") render();
+}
+async function loadTalk(gameId){
+  const box = document.getElementById("talk-" + gameId); if(!box) return;
+  box.innerHTML = '<div class="small mut">Loading the talk...</div>';
+  await fetchTalkFeed(gameId);
+  renderTalk(gameId);
+}
+function renderTalk(gameId){
+  const box = document.getElementById("talk-" + gameId); if(!box) return;
+  const msgs = talkCache[gameId] || [];
+  let h = msgs.length ? msgs.map(talkRowHTML).join("") : '<div class="small mut">No talk yet on this one. Start it.</div>';
+  if(save.member){
+    h += '<div style="margin-top:8px"><input type="text" id="talkIn-' + gameId + '" maxlength="200" placeholder="Talk as @' + esc(save.member.username) + '..."><button class="btn small" data-talksend="' + gameId + '" style="margin-top:6px">POST</button> <span class="small" id="talkMsg-' + gameId + '"></span></div>';
+  } else {
+    h += '<div class="small mut" style="margin-top:8px">Talking in the Park runs on verified @names. Register your @name in MY PARK to join the talk.</div>';
+  }
+  box.innerHTML = h;
+  wireTalkSend(box);
+}
+function wireTalkSend(root){
+  root.querySelectorAll("[data-talksend]").forEach(btn => btn.addEventListener("click", async () => {
+    const gid = btn.getAttribute("data-talksend");
+    const inp = document.getElementById("talkIn-" + gid);
+    const msg = document.getElementById("talkMsg-" + gid);
+    const text = inp ? inp.value.trim() : "";
+    if(!text){ if(msg) msg.textContent = "Write something first."; return; }
+    if(msg) msg.textContent = "Posting...";
+    const res = await parkPost({action: "postTalk", username: save.member.username, token: save.member.token, scope: gid, text: text});
+    if(res && res.ok){ talkCache[gid] = null; loadTalk(gid); }
+    else if(msg) msg.textContent = (res && res.why) || "That did not post.";
+  }));
+}
+function calloutsHTML(){
+  const feed = talkCache["callouts"];
+  let h = '<div class="card" id="calloutsCard"><div class="rankline">\ud83d\udce3 PARK CALLOUTS</div>';
+  if(save.member){
+    h += '<div style="margin-top:6px"><input type="text" id="coTarget" placeholder="Their @name" maxlength="16" value="' + esc(calloutTarget || "") + '"><input type="text" id="coText" maxlength="200" placeholder="Your callout..." style="margin-top:6px"><button class="btn small" id="coSend" style="margin-top:6px">POST CALLOUT</button> <span class="small" id="coMsg"></span></div>';
+  } else {
+    h += '<div class="joinline">Callouts run on verified @names. Register your @name to call out a rival.</div>';
+  }
+  h += feed ? (feed.length ? feed.slice().reverse().map(talkRowHTML).join("") : '<div class="small mut" style="margin-top:8px">No callouts yet. Be the first to bark.</div>') : '<div class="small mut" style="margin-top:8px">Loading callouts...</div>';
+  return h + '</div>';
+}
+function wireCallouts(){
+  document.querySelectorAll("[data-callout]").forEach(btn => btn.addEventListener("click", () => {
+    calloutTarget = btn.getAttribute("data-callout") || "";
+    render();
+    const t = document.getElementById("coTarget"); if(t) t.value = calloutTarget;
+    const card = document.getElementById("calloutsCard"); if(card) card.scrollIntoView({behavior: "smooth", block: "start"});
+    const txt = document.getElementById("coText"); if(txt) txt.focus();
+  }));
+  const send = document.getElementById("coSend");
+  if(send) send.addEventListener("click", async () => {
+    const msg = document.getElementById("coMsg");
+    const target = (document.getElementById("coTarget").value || "").trim().replace(/^@+/, "");
+    const text = (document.getElementById("coText").value || "").trim();
+    if(!target || !text){ if(msg) msg.textContent = "Name a rival and write the callout."; return; }
+    if(msg) msg.textContent = "Posting...";
+    const res = await parkPost({action: "postTalk", username: save.member.username, token: save.member.token, scope: "callouts", target: target, text: text});
+    if(res && res.ok){ calloutTarget = ""; talkCache["callouts"] = null; await fetchTalkFeed("callouts"); render(); }
+    else if(msg) msg.textContent = (res && res.why) || "That did not post.";
+  });
 }
 function renderNav(){
   const nav = document.getElementById("sportNav");
@@ -801,6 +878,12 @@ function wirePickControls(root){
     const d = drafts[ev.id] || (drafts[ev.id] = {side: null, margin: ev.rounds + 1, touched: false});
     d.margin = parseInt(btn.dataset.r, 10); d.touched = true;
     syncPickUI(ev);
+  }));
+  root.querySelectorAll("[data-talk]").forEach(btn => btn.addEventListener("click", () => {
+    const gid = btn.getAttribute("data-talk");
+    const box = document.getElementById("talk-" + gid); if(!box) return;
+    if(box.style.display === "none"){ box.style.display = "block"; loadTalk(gid); }
+    else box.style.display = "none";
   }));
   root.querySelectorAll("[data-banneroff]").forEach(btn => btn.addEventListener("click", () => {
     save.noBanner = true; store(); render();
@@ -1083,13 +1166,14 @@ function renderYard(){
   const board = [card].concat((save.board || []).filter(b => b.name !== card.name)).slice().sort((a, b) => b.tot.points - a.tot.points);
   h += '<div class="card"><div class="rankline">THE PARK BOARD</div><div class="tblwrap"><table><tr><th>RANK</th><th>FAN</th><th>TITLE</th><th>POINTS</th><th>PICKS</th><th>WIN %</th><th>DIRECT HITS</th></tr>';
   board.forEach((c, i) => { const medal = i === 0 ? "🏆" : i === 1 ? "🥈" : i === 2 ? "🥉" : String(i + 1);
-    h += '<tr><td>' + medal + '</td><td>' + esc(c.name) + (c.sup ? ' <span style="color:var(--gold)">🐾</span>' : '') + (c.name === card.name ? " (you)" : "") + '</td><td>' + rankEmoji(c.tot.points) + ' ' + rankTitle(c.tot.points) + '</td><td>' + c.tot.points + '</td><td>' + c.tot.picks + '</td><td>' + pct(c.tot.wins, c.tot.picks) + '%</td><td>' + c.tot.dh + '</td></tr>'; });
+    h += '<tr><td>' + medal + '</td><td>' + esc(c.name) + (c.sup ? ' <span style="color:var(--gold)">🐾</span>' : '') + (c.name === card.name ? " (you)" : "") + (c.name !== card.name && c.name.charAt(0) === "@" ? ' <button class="btn ghost small" data-callout="' + esc(c.name.replace(/^@+/, "")) + '">📣 CALL OUT</button>' : "") + '</td><td>' + rankEmoji(c.tot.points) + ' ' + rankTitle(c.tot.points) + '</td><td>' + c.tot.points + '</td><td>' + c.tot.picks + '</td><td>' + pct(c.tot.wins, c.tot.picks) + '%</td><td>' + c.tot.dh + '</td></tr>'; });
   if(save.invitedBy) h += '<div class="card"><div class="joinline">🐾 You came in on <b>' + esc(save.invitedBy) + '</b>\'s invite, so their card is already on your Park Board below. Make your picks, then send your own invite link and grow your board.</div></div>';
   h += '</table></div><div class="small mut" style="margin-top:8px">Send your invite link: one tap puts your card on a friend\'s Park Board and brings them into the game. Season codes still work too. The weekly leaderboard lives on Facebook, cards posted every Monday.</div>' +
     '<button class="btn" id="inviteBtn">INVITE A PLAYER</button> <button class="btn ghost" id="shareBtn">SHARE MY CARD</button> <button class="btn ghost" id="cardImgBtn">DOG TAG CARD IMAGE</button> <button class="btn ghost" id="copyBtn">COPY MY SEASON CODE</button>' +
     '<div class="sharebox" id="shareBox"></div>' +
     '<div style="margin-top:14px"><input type="text" id="importBox" placeholder="Paste a friend\'s DP- season code"></div>' +
     '<button class="btn ghost small" id="importBtn">ADD TO THE BOARD</button> <span class="small" id="importMsg"></span></div>';
+  h += calloutsHTML();
   h += '<div class="card"><div class="rankline">HOW SCORING WORKS</div><div class="small" style="line-height:1.7;margin-top:6px">' +
     'Pick the winner and call the margin. Beat the number, bank the points: an exact margin is a <b style="color:var(--gold)">Direct Hit, 100 points</b>. ' +
     'Every point you are off inside ten costs 10: off by 1 scores 90, off by 2 scores 80, and so on. Miss the winner, or land outside ten, and the game scores 0. No negatives, ever. ' +
@@ -1100,6 +1184,7 @@ function renderYard(){
   v.innerHTML = h;
   wireMemberCard();
   wireTransferCard();
+  wireCallouts();
   ["joinUser", "joinEmail", "joinCode"].forEach(id => { const el = document.getElementById(id); if(el && keep[id]) el.value = keep[id]; });
   if(keepStep2 && document.getElementById("joinStep2")) document.getElementById("joinStep2").style.display = keepStep2;
   if(keepMsg && document.getElementById("joinMsg")) document.getElementById("joinMsg").textContent = keepMsg;
@@ -1549,6 +1634,7 @@ async function refresh(rerender){
   if(snapChanged) store();
   if(ids.length) await fetchPark(ids);
   if(save.member && !syncPulled){ syncPulled = true; parkSyncCard(); }
+  fetchTalkFeed("callouts");
   render();
 }
 function scheduleAuto(){
