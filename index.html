@@ -1308,6 +1308,8 @@ function renderYard(){
     '<button class="btn ghost small" id="importBtn">ADD TO THE BOARD</button> <span class="small" id="importMsg"></span></div>';
   h += safeHTML(calloutsHTML);
   h += safeHTML(ownChalkHTML);
+  h += safeHTML(profileCardHTML);
+  h += safeHTML(peopleHTML);
   h += '<div class="card"><div class="rankline">HOW SCORING WORKS</div><div class="small" style="line-height:1.7;margin-top:6px">' +
     'Pick the winner and call the margin. Beat the number, bank the points: an exact margin is a <b style="color:var(--gold)">Direct Hit, 100 points</b>. ' +
     'Every point you are off inside ten costs 10: off by 1 scores 90, off by 2 scores 80, and so on. Miss the winner, or land outside ten, and the game scores 0. No negatives, ever. ' +
@@ -1323,6 +1325,7 @@ function renderYard(){
   wireTalkDeletes(document);
   wireReport();
   wirePageButtons();
+  wireProfile();
   ["joinUser", "joinEmail", "joinCode"].forEach(id => { const el = document.getElementById(id); if(el && keep[id]) el.value = keep[id]; });
   if(keepStep2 && document.getElementById("joinStep2")) document.getElementById("joinStep2").style.display = keepStep2;
   if(keepMsg && document.getElementById("joinMsg")) document.getElementById("joinMsg").textContent = keepMsg;
@@ -1418,6 +1421,10 @@ async function parkSyncCard(){
   const res = await parkPost({action: "getMyCard", username: save.member.username, token: save.member.token});
   if(!res || !res.ok || !Array.isArray(res.picks)) return;
   let changed = false;
+  if(res.college !== undefined || res.favs !== undefined){
+    const np = { college: res.college || "", favs: res.favs || {} };
+    if(JSON.stringify(np) !== JSON.stringify(save.profile || {})){ save.profile = np; changed = true; }
+  }
   const serverIds = {};
   for(const sp of res.picks){
     serverIds[sp.gameId] = sp;
@@ -1493,6 +1500,8 @@ function wireReport(){
   const i = document.getElementById("ideaSend"); if(i) i.addEventListener("click", () => send("idea"));
 }
 let pageUser = null, boardCache = [];
+let directory = null, profDrafts = null;
+const FAV_LEAGUES = ["NFL", "NBA", "NCAAF", "NCAAB", "NHL"];
 function pageScope(name){ return "page:" + String(name || "").replace(/^@+/, "").toLowerCase(); }
 function openPage(name){
   pageUser = String(name || "").replace(/^@+/, "");
@@ -1510,10 +1519,17 @@ function renderPage(){
   const scope = pageScope(pageUser);
   const mine = !!(save.member && save.member.username.toLowerCase() === pageUser.toLowerCase());
   const pc = boardCache.find(c => c.name.replace(/^@+/, "").toLowerCase() === pageUser.toLowerCase());
+  const dirEntry = (directory || []).find(m => String(m.username).toLowerCase() === pageUser.toLowerCase());
+  const prof = mine ? myProfile() : (dirEntry ? { college: dirEntry.college || "", favs: dirEntry.favs || {} } : null);
+  let colors = "";
+  if(prof && (prof.college || FAV_LEAGUES.some(k => prof.favs && prof.favs[k]))){
+    colors = '<div style="margin-top:8px">' + (prof.college ? '<div class="joinline">\ud83c\udf93 <b>' + esc(prof.college) + '</b></div>' : '') +
+      FAV_LEAGUES.filter(k => prof.favs && prof.favs[k]).map(k => '<span style="display:inline-block;padding:3px 9px;border:1px solid var(--line);border-radius:999px;margin:4px 4px 0 0;font-size:12px;font-weight:700">' + SPORTS[k].label + ': ' + esc(prof.favs[k]) + '</span>').join("") + '</div>';
+  }
   let h = '<div class="card"><div class="rankline">\ud83d\udcc4 PLAYER PAGE</div>' +
     '<div style="font-family:Oswald,sans-serif;font-size:30px;font-weight:700;margin-top:6px">@' + esc(pageUser) + (pc && pc.sup ? ' <span style="color:var(--gold)">\ud83d\udc3e</span>' : '') + '</div>' +
     (pc ? '<div class="joinline" style="margin-top:4px">' + rankEmoji(pc.tot.points) + ' <b>' + rankTitle(pc.tot.points) + '</b> \u00b7 ' + pc.tot.points + ' points \u00b7 ' + pc.tot.picks + ' picks \u00b7 ' + pct(pc.tot.wins, pc.tot.picks) + '% wins \u00b7 ' + pc.tot.dh + ' Direct Hits</div>' : '<div class="joinline" style="margin-top:4px">A verified Park player.</div>') +
-    '<div style="margin-top:10px"><button class="btn ghost small" data-backyard="1">\u2190 BACK TO MY PARK</button></div></div>';
+    colors + '<div style="margin-top:10px"><button class="btn ghost small" data-backyard="1">\u2190 BACK TO MY PARK</button></div></div>';
   const notes = talkCache[scope];
   h += '<div class="card"><div class="rankline">\ud83e\uddf1 THE CHALKBOARD</div>' +
     '<div class="joinline" style="margin-top:6px">' + (mine ? 'Your wall. Notes other players leave you wait here, like the old Yard.' : 'Leave a note for @' + esc(pageUser) + '. It waits on their page until they wander by, like the old Yard.') + '</div>' +
@@ -1533,6 +1549,59 @@ function renderPage(){
     else if(msg) msg.textContent = (res && res.why) || "That did not post.";
   });
   wireTalkDeletes(v);
+}
+function myProfile(){
+  const p = save.profile || {};
+  return { college: p.college || "", favs: p.favs || {} };
+}
+function teamList(sport){
+  const set = {};
+  ((feed[sport] || {}).events || []).forEach(ev => { set[ev.away.name] = 1; set[ev.home.name] = 1; });
+  return Object.keys(set).sort();
+}
+function profileCardHTML(){
+  if(!save.member) return "";
+  const cur = profDrafts || myProfile();
+  let h = '<div class="card"><div class="rankline">\ud83c\udfa8 YOUR COLORS</div>' +
+    '<div class="joinline" style="margin-top:6px">Your college and favorite teams ride on your player page, and your college puts you in the directory so your people can find you.</div>' +
+    '<div style="margin-top:8px"><input type="text" id="profCollege" maxlength="60" placeholder="Your college (e.g. Oregon State)" value="' + esc(cur.college || "") + '"></div>';
+  FAV_LEAGUES.forEach(k => {
+    h += '<div style="margin-top:8px"><input type="text" id="fav' + k + '" list="dl' + k + '" maxlength="40" placeholder="' + SPORTS[k].label + ' favorite team" value="' + esc((cur.favs || {})[k] || "") + '"><datalist id="dl' + k + '">' + teamList(k).map(t => '<option value="' + esc(t) + '">').join("") + '</datalist></div>';
+  });
+  h += '<div style="margin-top:10px"><button class="btn small" id="profSave">SAVE MY COLORS</button> <span class="small" id="profMsg"></span></div></div>';
+  return h;
+}
+function wireProfile(){
+  const b = document.getElementById("profSave"); if(!b) return;
+  b.addEventListener("click", async () => {
+    const msg = document.getElementById("profMsg");
+    const favs = {}; FAV_LEAGUES.forEach(k => { const f = document.getElementById("fav" + k); favs[k] = f ? f.value.trim() : ""; });
+    const college = (document.getElementById("profCollege").value || "").trim();
+    if(msg) msg.textContent = "Saving...";
+    const res = await parkPost({action: "setProfile", username: save.member.username, token: save.member.token, college: college, favs: favs});
+    if(res && res.ok){ save.profile = { college: college, favs: favs }; profDrafts = null; directory = null; store(); if(msg) msg.textContent = "Saved. Your colors are on your page."; fetchDirectory(); }
+    else if(msg) msg.textContent = (res && res.why) || "That did not save.";
+  });
+}
+async function fetchDirectory(){
+  if(!PARK_API) return;
+  try{ const r = await fetch(PARK_API + "?directory=1"); const res = await r.json(); if(res && res.ok){ directory = res.members || []; if(view === "YARD" || view === "PAGE") render(); } }catch(e){}
+}
+function peopleHTML(){
+  if(directory === null) return '<div class="card"><div class="rankline">\ud83e\udded FIND YOUR PEOPLE</div><div class="small mut" style="margin-top:6px">Loading the directory...</div></div>';
+  const groups = {};
+  directory.forEach(m => { const key = String(m.college || "").trim().toLowerCase(); if(!key) return; const g = groups[key] || (groups[key] = { name: m.college, members: [], pts: 0 }); g.members.push(m); g.pts += Number(m.pts) || 0; });
+  const myKey = save.member ? (myProfile().college || "").trim().toLowerCase() : "";
+  const keys = Object.keys(groups).sort((a, b) => ((b === myKey) - (a === myKey)) || groups[b].pts - groups[a].pts);
+  let h = '<div class="card"><div class="rankline">\ud83e\udded FIND YOUR PEOPLE</div><div class="joinline" style="margin-top:6px">The Park, matched by college, like the old Yard. Points are each crew\u2019s combined score.</div>';
+  if(!keys.length) h += '<div class="small mut" style="margin-top:8px">No colleges claimed yet. Set yours under YOUR COLORS and start your school\u2019s crew.</div>';
+  keys.forEach(key => {
+    const g = groups[key];
+    h += '<div style="margin-top:12px"><b>\ud83c\udf93 ' + esc(g.name) + '</b> <span class="small mut">' + g.members.length + (g.members.length === 1 ? ' fan' : ' fans') + ' \u00b7 ' + g.pts + ' pts</span>' + (myKey && key === myKey ? ' <span style="color:var(--gold);font-weight:700">YOUR PEOPLE</span>' : '') + '</div>';
+    h += g.members.slice().sort((a, b) => (Number(b.pts) || 0) - (Number(a.pts) || 0)).map(m => '<div style="margin-top:5px"><button class="btn ghost small" data-page="' + esc(m.username) + '">@' + esc(m.username) + '</button> <span class="small">' + (Number(m.pts) || 0) + ' pts</span>' + (m.supporter ? ' <span style="color:var(--gold)">\ud83d\udc3e</span>' : '') + '</div>').join("");
+  });
+  if(!save.member) h += '<div class="small mut" style="margin-top:10px">Register your @name and set your college to join the directory.</div>';
+  return h + '</div>';
 }
 function ownChalkHTML(){
   if(!save.member) return "";
@@ -1838,6 +1907,8 @@ function checkInviteLink(){
 }
 function render(){
   document.querySelectorAll("[id^='talkIn-']").forEach(inp => { talkDrafts[inp.id.slice(7)] = inp.value; });
+  const pcEl = document.getElementById("profCollege");
+  if(pcEl){ profDrafts = { college: pcEl.value, favs: {} }; FAV_LEAGUES.forEach(k => { const f = document.getElementById("fav" + k); profDrafts.favs[k] = f ? f.value : ""; }); }
   renderNav(); setUpdated();
   if(view === "LIVE") renderLive();
   else if(view === "PAGE") renderPage();
@@ -1864,6 +1935,7 @@ async function refresh(rerender){
   fetchTalkFeed("callouts");
   if(isParkAdmin()){ fetchTalkFeed("bugs"); fetchTalkFeed("ideas"); }
   if(save.member) fetchTalkFeed(pageScope(save.member.username));
+  if(!directory) fetchDirectory();
   render();
 }
 function scheduleAuto(){
