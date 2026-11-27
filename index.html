@@ -557,8 +557,27 @@ function gameCard(ev){
 }
 const talkCache = {};
 let calloutTarget = "";
+let talkOpen = {}, talkDrafts = {};
 function talkHTML(ev){
-  return '<div style="margin-top:10px;border-top:1px dashed var(--line);padding-top:8px"><button class="btn ghost small" data-talk="' + ev.id + '">\ud83d\udcac GAME TALK</button><div id="talk-' + ev.id + '" style="display:none;margin-top:8px"></div></div>';
+  const open = !!talkOpen[ev.id];
+  return '<div style="margin-top:10px;border-top:1px dashed var(--line);padding-top:8px"><button class="btn ghost small" data-talk="' + ev.id + '">\ud83d\udcac GAME TALK</button><div id="talk-' + ev.id + '" style="margin-top:8px' + (open ? '' : ';display:none') + '">' + (open ? talkInnerHTML(ev.id) : '') + '</div></div>';
+}
+function talkInnerHTML(gameId){
+  const msgs = talkCache[gameId];
+  if(!msgs) return '<div class="small mut">Loading the talk...</div>';
+  let h = msgs.length ? msgs.map(m => talkRowHTML(m, gameId)).join("") : '<div class="small mut">No talk yet on this one. Start it.</div>';
+  if(save.member){
+    h += '<div style="margin-top:8px"><input type="text" id="talkIn-' + gameId + '" maxlength="200" placeholder="Talk as @' + esc(save.member.username) + '..." value="' + esc(talkDrafts[gameId] || "") + '"><button class="btn small" data-talksend="' + gameId + '" style="margin-top:6px">POST</button> <span class="small" id="talkMsg-' + gameId + '"></span></div>';
+  } else {
+    h += '<div class="small mut" style="margin-top:8px">Talking in the Park runs on verified @names. Register your @name in MY PARK to join the talk.</div>';
+  }
+  return h;
+}
+function wireOpenTalk(root){
+  root.querySelectorAll("[id^='talk-']").forEach(box => {
+    const gid = box.id.slice(5);
+    if(talkOpen[gid]){ wireTalkSend(box); wireTalkDeletes(box); if(!talkCache[gid]) loadTalk(gid); }
+  });
 }
 function talkRowHTML(m, scope){
   const when = m.ts ? new Date(m.ts).toLocaleTimeString([], {hour: "numeric", minute: "2-digit"}) : "";
@@ -578,14 +597,7 @@ async function loadTalk(gameId){
 }
 function renderTalk(gameId){
   const box = document.getElementById("talk-" + gameId); if(!box) return;
-  const msgs = talkCache[gameId] || [];
-  let h = msgs.length ? msgs.map(m => talkRowHTML(m, gameId)).join("") : '<div class="small mut">No talk yet on this one. Start it.</div>';
-  if(save.member){
-    h += '<div style="margin-top:8px"><input type="text" id="talkIn-' + gameId + '" maxlength="200" placeholder="Talk as @' + esc(save.member.username) + '..."><button class="btn small" data-talksend="' + gameId + '" style="margin-top:6px">POST</button> <span class="small" id="talkMsg-' + gameId + '"></span></div>';
-  } else {
-    h += '<div class="small mut" style="margin-top:8px">Talking in the Park runs on verified @names. Register your @name in MY PARK to join the talk.</div>';
-  }
-  box.innerHTML = h;
+  box.innerHTML = talkInnerHTML(gameId);
   wireTalkSend(box);
   wireTalkDeletes(box);
 }
@@ -780,7 +792,7 @@ function renderSport(sport){
     cardsHtml = sorted.map(gameCard).join("");
   }
   v.innerHTML = guestBrowserBanner() + parkLineHTML(sorted.map(e => e.id)) + cardsHtml;
-  wirePickControls(v); wireInfo(v);
+  wirePickControls(v); wireInfo(v); wireOpenTalk(v);
 }
 function parkMeterHTML(){
   let totalPicks = 0, covered = 0, board = 0;
@@ -876,7 +888,7 @@ function renderLive(){
   for(const k of Object.keys(SPORTS)){ for(const ev of (feed[k] || {}).events || []) if(ev.state === "in") live.push(ev); }
   if(!live.length){ v.innerHTML = guestBrowserBanner() + lockedPicksHTML() + parkMeterHTML() + '<div class="card" style="text-align:center"><b>No games are live this minute.</b><br><span class="mut">When a game tips off, kicks off or drops the puck, it shows up here with the score and clock, refreshing on its own.</span></div>'; return; }
   v.innerHTML = guestBrowserBanner() + '<h2 class="sec">LIVE SCORING WATCH</h2>' + lockedPicksHTML() + parkMeterHTML() + live.map(gameCard).join("");
-  wirePickControls(v); wireInfo(v);
+  wirePickControls(v); wireInfo(v); wireOpenTalk(v);
 }
 let drafts = {};
 let editOpen = {};
@@ -999,8 +1011,8 @@ function wirePickControls(root){
   root.querySelectorAll("[data-talk]").forEach(btn => btn.addEventListener("click", () => {
     const gid = btn.getAttribute("data-talk");
     const box = document.getElementById("talk-" + gid); if(!box) return;
-    if(box.style.display === "none"){ box.style.display = "block"; loadTalk(gid); }
-    else box.style.display = "none";
+    if(!talkOpen[gid]){ talkOpen[gid] = true; box.style.display = "block"; loadTalk(gid); }
+    else { talkOpen[gid] = false; box.style.display = "none"; }
   }));
   root.querySelectorAll("[data-banneroff]").forEach(btn => btn.addEventListener("click", () => {
     save.noBanner = true; store(); render();
@@ -1247,6 +1259,7 @@ function myGraphsHTML(){
   h += '</div>';
   return h;
 }
+function safeHTML(fn){ try { return fn(); } catch(e){ return ""; } }
 function renderYard(){
   const v = document.getElementById("view");
   const keep = {};
@@ -1263,9 +1276,9 @@ function renderYard(){
     (isParkAdmin() ? '<div style="margin:0 0 10px"><span style="display:inline-block;padding:4px 10px;border:1px solid var(--gold);border-radius:999px;color:var(--gold);font-weight:700;letter-spacing:.04em">👑 TOP DOG · ADMINISTRATOR COLLAR</span> <span class="small mut">This card runs the Park: it can delete talk and callouts.</span></div>' : '') + '<div class="rankline">Rank: ' + rankEmoji(card.tot.points) + ' <b>' + rankTitle(card.tot.points) + '</b> · ' + card.tot.points + ' total points · ' + card.tot.dh + ' Direct Hits</div></div>';
   h += lockedPicksHTML();
   h += parkMeterHTML();
-  h += trendsHTML();
-  h += myGraphsHTML();
-  h += recordsHTML();
+  h += safeHTML(trendsHTML);
+  h += safeHTML(myGraphsHTML);
+  h += safeHTML(recordsHTML);
   h += '<div class="card"><div class="tblwrap"><table><tr><th>LEAGUE</th><th>POINTS</th><th>PICKS</th><th>WINS</th><th>WIN %</th><th>PTS WIN %</th><th>DIRECT HITS</th></tr>';
   for(const k of Object.keys(SPORTS)){
     const s = card.per[k];
@@ -1292,7 +1305,7 @@ function renderYard(){
     '<div class="sharebox" id="shareBox"></div>' +
     '<div style="margin-top:14px"><input type="text" id="importBox" placeholder="Paste a friend\'s DP- season code"></div>' +
     '<button class="btn ghost small" id="importBtn">ADD TO THE BOARD</button> <span class="small" id="importMsg"></span></div>';
-  h += calloutsHTML();
+  h += safeHTML(calloutsHTML);
   h += '<div class="card"><div class="rankline">HOW SCORING WORKS</div><div class="small" style="line-height:1.7;margin-top:6px">' +
     'Pick the winner and call the margin. Beat the number, bank the points: an exact margin is a <b style="color:var(--gold)">Direct Hit, 100 points</b>. ' +
     'Every point you are off inside ten costs 10: off by 1 scores 90, off by 2 scores 80, and so on. Miss the winner, or land outside ten, and the game scores 0. No negatives, ever. ' +
@@ -1300,7 +1313,7 @@ function renderYard(){
   h += memberCardHTML();
   h += supporterCardHTML();
   h += transferCardHTML();
-  h += reportCardHTML();
+  h += safeHTML(reportCardHTML);
   v.innerHTML = h;
   wireMemberCard();
   wireTransferCard();
@@ -1766,6 +1779,7 @@ function checkInviteLink(){
   }catch(e){}
 }
 function render(){
+  document.querySelectorAll("[id^='talkIn-']").forEach(inp => { talkDrafts[inp.id.slice(7)] = inp.value; });
   renderNav(); setUpdated();
   if(view === "LIVE") renderLive();
   else if(view === "YARD") renderYard();
