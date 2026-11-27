@@ -1065,14 +1065,17 @@ function renderYard(){
     'The Yardstick is the posted line for the game, the market\'s collective call on the margin, shown so you can measure your call against the crowd\'s number.<br><b>UFC fights:</b> pick the winner and the round it ends, or goes the distance. Exact round is a Direct Hit for 100, one round off scores 50, right winner with the round missed scores 25.</div></div>';
   h += memberCardHTML();
   h += supporterCardHTML();
+  h += transferCardHTML();
   v.innerHTML = h;
   wireMemberCard();
+  wireTransferCard();
   ["joinUser", "joinEmail", "joinCode"].forEach(id => { const el = document.getElementById(id); if(el && keep[id]) el.value = keep[id]; });
   if(keepStep2 && document.getElementById("joinStep2")) document.getElementById("joinStep2").style.display = keepStep2;
   if(keepMsg && document.getElementById("joinMsg")) document.getElementById("joinMsg").textContent = keepMsg;
   if(keepMsg2 && document.getElementById("joinMsg2")) document.getElementById("joinMsg2").textContent = keepMsg2;
   if(keep.joinUser) parkJoin.username = keep.joinUser;
   stampArm = false;
+  transferArm = false;
   const stampBtn = document.getElementById("stampBtn");
   if(stampBtn) stampBtn.addEventListener("click", () => {
     const v = (document.getElementById("fanName").value || "").trim();
@@ -1193,6 +1196,41 @@ function supporterCardHTML(){
     '<a class="btn" href="https://buy.stripe.com/28E14ofAs9kl9JUe3jbQY05" target="_blank" rel="noopener" style="text-decoration:none; display:inline-block">GET THE PASS</a>' +
     '<div style="margin-top:12px"><input type="text" id="passCode" placeholder="Pass code from your email (PARK-XXXXXX)" maxlength="11"></div>' +
     '<button class="btn ghost small" id="passBtn">REDEEM MY CODE</button> <span class="small" id="passMsg"></span>' + more + '</div>';
+}
+function transferCardHTML(){
+  return '<div class="card"><div class="rankline">🧳 MOVE MY CARD</div>' +
+    '<div class="joinline" style="margin-top:6px">Your card lives in this browser. Opened the game inside another app (Instagram, Facebook, a different browser) and got a fresh card? Move this card there instead: get your transfer code here, open the game where you want the card, and paste the code in. Your name, picks, points, trophies and supporter badge all move with it.</div>' +
+    '<button class="btn" id="transferBtn">GET MY TRANSFER CODE</button>' +
+    '<div class="sharebox" id="transferBox"></div>' +
+    '<div style="margin-top:14px"><input type="text" id="transferIn" placeholder="Paste a DPMOVE- transfer code"></div>' +
+    '<button class="btn ghost small" id="transferImportBtn">MOVE THIS CARD HERE</button> <span class="small" id="transferMsg"></span></div>';
+}
+let transferArm = false;
+function wireTransferCard(){
+  const gb = document.getElementById("transferBtn");
+  if(gb) gb.addEventListener("click", () => {
+    const code = transferCode();
+    const box = document.getElementById("transferBox"); box.style.display = "block"; box.textContent = code;
+    if(navigator.clipboard) navigator.clipboard.writeText(code).catch(() => {});
+  });
+  const ib = document.getElementById("transferImportBtn");
+  if(ib) ib.addEventListener("click", () => {
+    const msg = document.getElementById("transferMsg");
+    const raw = document.getElementById("transferIn").value.trim();
+    try{
+      const s = decodeTransferCode(raw);
+      if(!transferArm){ transferArm = true; msg.textContent = "This replaces the card in this browser with the moved card. Tap MOVE THIS CARD HERE again to confirm."; return; }
+      transferArm = false;
+      const keepSnap = save.lineSnap;
+      save = s;
+      if(!save.guestId) save.guestId = newGuestId();
+      if(!Array.isArray(save.board)) save.board = [];
+      if(!save.lineSnap) save.lineSnap = keepSnap || {};
+      if(save.supporter === undefined) save.supporter = false;
+      store(); refresh(false);
+      const m2 = document.getElementById("transferMsg"); if(m2) m2.textContent = "Your card moved in. Welcome back.";
+    }catch(e){ transferArm = false; msg.textContent = "That code did not read. Transfer codes start with DPMOVE- : check the paste and try again."; }
+  });
 }
 function wireMemberCard(){
   const rb = document.getElementById("rulesBtn");
@@ -1372,6 +1410,24 @@ function decodeCardCode(raw){
     }
   }
   throw new Error("bad code");
+}
+function transferCode(){
+  const s = JSON.parse(JSON.stringify(save));
+  delete s.lineSnap;
+  const raw = JSON.stringify({dpTransfer: 1, save: s});
+  return "DPMOVE-" + btoa(unescape(encodeURIComponent(raw))).replace(/=+$/, "");
+}
+function decodeTransferCode(raw){
+  let b = String(raw || "").trim();
+  if(b.indexOf("DPMOVE-") !== 0) throw new Error("not a transfer code");
+  b = b.slice(7);
+  b += "=".repeat((4 - b.length % 4) % 4);
+  let txt = null;
+  try{ txt = decodeURIComponent(escape(atob(b))); }catch(e){ try{ txt = atob(b); }catch(e2){} }
+  if(!txt) throw new Error("bad code");
+  const obj = JSON.parse(txt);
+  if(!obj || obj.dpTransfer !== 1 || !obj.save || typeof obj.save !== "object" || !obj.save.picks || typeof obj.save.picks !== "object") throw new Error("bad code");
+  return obj.save;
 }
 function inviteLink(){
   return "https://dogparkgames.github.io/dog-park/?i=" + encodeURIComponent(seasonCode());
