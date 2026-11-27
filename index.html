@@ -160,6 +160,13 @@ html,body{overflow-x:hidden}
 .teams>*,.pickrow>*,.marginrow>*,.gbar>*,.statgrid>*,.mrow>*,.pickbtns>*{min-width:0}
 .team{min-width:0}
 .team .tname,.team .abbr{overflow-wrap:anywhere}
+.team .abbr.long{font-size:21px}
+.team .abbr.xlong{font-size:17px}
+.center{max-width:36vw}
+.center .yslab{overflow-wrap:break-word}
+h2.sec{overflow-wrap:break-word}
+.pickbtns button{overflow-wrap:anywhere}
+.result,.pickread{overflow-wrap:break-word}
 .meta,.joinline,.leaderline,.rankline{overflow-wrap:break-word}
 td,th{overflow-wrap:break-word}
 input,textarea,select,button{max-width:100%}
@@ -168,7 +175,7 @@ input,textarea,select,button{max-width:100%}
 .pickrow{display:flex; justify-content:space-between; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); align-items:flex-start}
 .pickmain{font-size:14px; line-height:1.45}
 .pickstat{text-align:right; font-size:13px; max-width:46%}
-@media (max-width:560px){ .team .abbr{font-size:21px} .center{min-width:64px} .center .ys{font-size:19px}
+@media (max-width:560px){ .team .abbr{font-size:21px} .team .abbr.long{font-size:17px} .team .abbr.xlong{font-size:14.5px} .center{min-width:64px} .center .ys{font-size:19px}
   th,td{padding:7px 5px} table{font-size:13px} th{font-size:10.5px; letter-spacing:.5px}
   .statbar{grid-template-columns:86px 1fr 38px; font-size:12px; gap:6px}
   .rankline{font-size:17px} .pickmain{font-size:13px} .pickstat{font-size:12px} }
@@ -469,6 +476,7 @@ function roundRowHTML(ev, d){
   h += '<button data-round="' + ev.id + '" data-r="' + (ev.rounds + 1) + '" class="' + (d.margin === ev.rounds + 1 ? "on" : "") + '">DISTANCE</button></div>';
   return h;
 }
+function abbrCls(a){ const n = (a || "").length; return "abbr" + (n >= 10 ? " xlong" : n >= 8 ? " long" : ""); }
 function gameCard(ev){
   const parkGame = parkData[ev.id];
   const pick = save.picks[ev.id];
@@ -550,9 +558,9 @@ function gameCard(ev){
       : '<div class="result">Your pick: ' + esc(pick.side === "home" ? ev.home.abbr : ev.away.abbr) + ' to win by ' + pick.margin + '</div>';
   }
   return '<div class="card game"><div class="teams">' +
-    '<div class="team" data-info="' + ev.id + '" data-side="away"><div class="abbr">' + esc(ev.away.abbr) + '</div><div class="tname">' + esc(ev.away.name) + '</div>' + (ev.away.record ? '<div class="rec">' + esc(ev.away.record) + '</div>' : '') + (ev.sport === "UFC" ? '' : '<div class="statslink">TEAM STATS ›</div>') + '</div>' +
+    '<div class="team" data-info="' + ev.id + '" data-side="away"><div class="' + abbrCls(ev.away.abbr) + '">' + esc(ev.away.abbr) + '</div><div class="tname">' + esc(ev.away.name) + '</div>' + (ev.away.record ? '<div class="rec">' + esc(ev.away.record) + '</div>' : '') + (ev.sport === "UFC" ? '' : '<div class="statslink">TEAM STATS ›</div>') + '</div>' +
     '<div class="center">' + center + '</div>' +
-    '<div class="team" data-info="' + ev.id + '" data-side="home"><div class="abbr">' + esc(ev.home.abbr) + '</div><div class="tname">' + esc(ev.home.name) + '</div>' + (ev.home.record ? '<div class="rec">' + esc(ev.home.record) + '</div>' : '') + (ev.sport === "UFC" ? '' : '<div class="statslink">TEAM STATS ›</div>') + '</div>' +
+    '<div class="team" data-info="' + ev.id + '" data-side="home"><div class="' + abbrCls(ev.home.abbr) + '">' + esc(ev.home.abbr) + '</div><div class="tname">' + esc(ev.home.name) + '</div>' + (ev.home.record ? '<div class="rec">' + esc(ev.home.record) + '</div>' : '') + (ev.sport === "UFC" ? '' : '<div class="statslink">TEAM STATS ›</div>') + '</div>' +
     '</div>' + (!started && ev.sport !== "UFC" ? yardstickRuler(ev) : '') + '<div class="meta">' + meta + '</div><div class="infopanel" id="info-' + ev.id + '" style="display:none"></div>' + body + talkHTML(ev) + '</div>';
 }
 const talkCache = {};
