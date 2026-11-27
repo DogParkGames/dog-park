@@ -154,6 +154,16 @@ footer{text-align:center; color:var(--mut); font-size:12.5px; margin-top:26px; l
 .checkline{display:flex; gap:8px; align-items:flex-start; text-align:left; font-size:13.5px; font-weight:700; margin-top:10px}
 .checkline input{margin-top:3px}
 .tblwrap{overflow-x:auto; -webkit-overflow-scrolling:touch}
+/* Containment enforcement: text stays inside its box, universally. No name, word or string may push a card wider than the screen. */
+html,body{overflow-x:hidden}
+.card{overflow:hidden}
+.teams>*,.pickrow>*,.marginrow>*,.gbar>*,.statgrid>*,.mrow>*,.pickbtns>*{min-width:0}
+.team{min-width:0}
+.team .tname,.team .abbr{overflow-wrap:anywhere}
+.meta,.joinline,.leaderline,.rankline{overflow-wrap:break-word}
+td,th{overflow-wrap:break-word}
+input,textarea,select,button{max-width:100%}
+.utext{overflow-wrap:anywhere}
 .tblwrap table{min-width:540px}
 .pickrow{display:flex; justify-content:space-between; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); align-items:flex-start}
 .pickmain{font-size:14px; line-height:1.45}
@@ -552,7 +562,7 @@ function talkHTML(ev){
 }
 function talkRowHTML(m, scope){
   const when = m.ts ? new Date(m.ts).toLocaleTimeString([], {hour: "numeric", minute: "2-digit"}) : "";
-  return '<div style="margin-top:7px"><b>@' + esc(m.user) + '</b>' + (m.target ? ' <span class="mut">\ud83d\udce3 calling out</span> <b>@' + esc(m.target) + '</b>' : '') + ' <span class="small mut">' + when + '</span><br>' + esc(m.text) + (isParkAdmin() && m.id ? ' <button class="btn ghost small" data-deltalk="' + esc(m.id) + '" data-scope="' + esc(scope || "") + '">✕ DELETE</button>' : '') + '</div>';
+  return '<div style="margin-top:7px"><b>@' + esc(m.user) + '</b>' + (m.target ? ' <span class="mut">\ud83d\udce3 calling out</span> <b>@' + esc(m.target) + '</b>' : '') + ' <span class="small mut">' + when + '</span><br><span class="utext">' + esc(m.text) + '</span>' + (isParkAdmin() && m.id ? ' <button class="btn ghost small" data-deltalk="' + esc(m.id) + '" data-scope="' + esc(scope || "") + '">✕ DELETE</button>' : '') + '</div>';
 }
 async function fetchTalkFeed(scope){
   if(!PARK_API) return;
@@ -721,7 +731,8 @@ function wireTalkDeletes(root){
     const res = await parkPost({action: "deleteTalk", username: save.member.username, token: save.member.token, id: id});
     if(res && res.ok){
       if(scope === "callouts"){ talkCache["callouts"] = null; await fetchTalkFeed("callouts"); render(); }
-      else if(scope){ talkCache[scope] = null; loadTalk(scope); }
+      else if(scope && document.getElementById("talk-" + scope)){ talkCache[scope] = null; loadTalk(scope); }
+      else if(scope){ talkCache[scope] = null; await fetchTalkFeed(scope); render(); }
     } else { btn.textContent = "✕ DELETE"; alert((res && res.why) || "That did not delete."); }
   }));
 }
@@ -1289,11 +1300,13 @@ function renderYard(){
   h += memberCardHTML();
   h += supporterCardHTML();
   h += transferCardHTML();
+  h += reportCardHTML();
   v.innerHTML = h;
   wireMemberCard();
   wireTransferCard();
   wireCallouts();
   wireTalkDeletes(document);
+  wireReport();
   ["joinUser", "joinEmail", "joinCode"].forEach(id => { const el = document.getElementById(id); if(el && keep[id]) el.value = keep[id]; });
   if(keepStep2 && document.getElementById("joinStep2")) document.getElementById("joinStep2").style.display = keepStep2;
   if(keepMsg && document.getElementById("joinMsg")) document.getElementById("joinMsg").textContent = keepMsg;
@@ -1434,6 +1447,34 @@ function parkLineHTML(ids){
   for(const id of ids){ const pg = parkData[id]; if(pg && pg.n){ n += pg.n; games++; } }
   if(!games) return '<div class="card joinline" style="text-align:center">🌳 <b>The Park Brain is live.</b> <span class="mut">No Park picks on this board yet. Verified members set the Park Yardstick.</span></div>';
   return '<div class="card joinline" style="text-align:center">🌳 <b>The Park Brain:</b> ' + n + ' member pick' + (n === 1 ? "" : "s") + ' across ' + games + ' game' + (games === 1 ? "" : "s") + ' on this board.</div>';
+}
+function reportCardHTML(){
+  let h = '<div class="card"><div class="rankline">\ud83d\udc1e REPORT A BUG \u00b7 \ud83d\udca1 MAKE A SUGGESTION</div>' +
+    '<div class="joinline">Found something broken, or got an idea for the Park? Send a note. It goes straight to @DogPark, the Park admin.</div>' +
+    '<textarea id="reportText" rows="3" maxlength="500" placeholder="What happened, or what would you add?" style="width:100%;margin-top:8px"></textarea>' +
+    '<div style="margin-top:6px"><button class="btn small" id="bugSend">\ud83d\udc1e REPORT BUG</button> <button class="btn ghost small" id="ideaSend">\ud83d\udca1 SEND SUGGESTION</button> <span class="small" id="reportMsg"></span></div></div>';
+  if(isParkAdmin()){
+    const bugs = talkCache["bugs"], ideas = talkCache["ideas"];
+    h += '<div class="card"><div class="rankline">\ud83d\udce5 PARK INBOX (ADMIN)</div>';
+    h += '<div class="small mut" style="margin-top:6px">BUG REPORTS</div>' + (bugs ? (bugs.length ? bugs.slice().reverse().map(m => talkRowHTML(m, "bugs")).join("") : '<div class="small mut">No bug reports.</div>') : '<div class="small mut">Loading...</div>');
+    h += '<div class="small mut" style="margin-top:10px">SUGGESTIONS</div>' + (ideas ? (ideas.length ? ideas.slice().reverse().map(m => talkRowHTML(m, "ideas")).join("") : '<div class="small mut">No suggestions.</div>') : '<div class="small mut">Loading...</div>');
+    h += '</div>';
+  }
+  return h;
+}
+function wireReport(){
+  async function send(kind){
+    const msg = document.getElementById("reportMsg");
+    const text = (document.getElementById("reportText").value || "").trim();
+    if(!text){ if(msg) msg.textContent = "Write the note first."; return; }
+    if(msg) msg.textContent = "Sending...";
+    const name = save.member ? save.member.username : (save.name || "");
+    const res = await parkPost({action: "report", kind: kind, text: text, name: name});
+    if(res && res.ok){ if(msg) msg.textContent = "Sent. Thank you, the Park reads every note."; const t = document.getElementById("reportText"); if(t) t.value = ""; if(isParkAdmin()){ talkCache[kind === "idea" ? "ideas" : "bugs"] = null; fetchTalkFeed(kind === "idea" ? "ideas" : "bugs"); } }
+    else if(msg) msg.textContent = (res && res.why) || "That did not send.";
+  }
+  const b = document.getElementById("bugSend"); if(b) b.addEventListener("click", () => send("bug"));
+  const i = document.getElementById("ideaSend"); if(i) i.addEventListener("click", () => send("idea"));
 }
 function memberCardHTML(){
   if(save.member){
@@ -1748,6 +1789,7 @@ async function refresh(rerender){
   if(ids.length) await fetchPark(ids);
   if(save.member && !syncPulled){ syncPulled = true; parkSyncCard(); }
   fetchTalkFeed("callouts");
+  if(isParkAdmin()){ fetchTalkFeed("bugs"); fetchTalkFeed("ideas"); }
   render();
 }
 function scheduleAuto(){
