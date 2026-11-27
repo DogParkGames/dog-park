@@ -581,13 +581,13 @@ function wireOpenTalk(root){
 }
 function talkRowHTML(m, scope){
   const when = m.ts ? new Date(m.ts).toLocaleTimeString([], {hour: "numeric", minute: "2-digit"}) : "";
-  return '<div style="margin-top:7px"><b>@' + esc(m.user) + '</b>' + (m.target ? ' <span class="mut">\ud83d\udce3 calling out</span> <b>@' + esc(m.target) + '</b>' : '') + ' <span class="small mut">' + when + '</span><br><span class="utext">' + esc(m.text) + '</span>' + (isParkAdmin() && m.id ? ' <button class="btn ghost small" data-deltalk="' + esc(m.id) + '" data-scope="' + esc(scope || "") + '">✕ DELETE</button>' : '') + '</div>';
+  return '<div style="margin-top:7px"><b>@' + esc(m.user) + '</b>' + (m.target ? ' <span class="mut">\ud83d\udce3 calling out</span> <b>@' + esc(m.target) + '</b>' : '') + ' <span class="small mut">' + when + '</span><br><span class="utext">' + esc(m.text) + '</span>' + (canDeleteTalk(scope) && m.id ? ' <button class="btn ghost small" data-deltalk="' + esc(m.id) + '" data-scope="' + esc(scope || "") + '">✕ DELETE</button>' : '') + '</div>';
 }
 async function fetchTalkFeed(scope){
   if(!PARK_API) return;
   const had = !!talkCache[scope];
   try{ const r = await fetch(PARK_API + "?talk=" + encodeURIComponent(scope)); const res = await r.json(); if(res && res.ok) talkCache[scope] = res.talk || []; }catch(e){}
-  if(!had && view === "YARD") render();
+  if(!had && (view === "YARD" || view === "PAGE")) render();
 }
 async function loadTalk(gameId){
   const box = document.getElementById("talk-" + gameId); if(!box) return;
@@ -1296,9 +1296,10 @@ function renderYard(){
     tc.map(x => '<div class="trophy' + (x.got ? '' : ' locked') + '"><div class="emo">' + x.emo + '</div><div class="tname">' + x.name + '</div><div class="tdesc">' + x.desc + '</div></div>').join("") + '</div></div>';
   // Yard Board
   const board = [card].concat((save.board || []).filter(b => b.name !== card.name)).slice().sort((a, b) => b.tot.points - a.tot.points);
+  boardCache = board;
   h += '<div class="card"><div class="rankline">THE PARK BOARD</div><div class="tblwrap"><table><tr><th>RANK</th><th>FAN</th><th>TITLE</th><th>POINTS</th><th>PICKS</th><th>WIN %</th><th>DIRECT HITS</th></tr>';
   board.forEach((c, i) => { const medal = i === 0 ? "🏆" : i === 1 ? "🥈" : i === 2 ? "🥉" : String(i + 1);
-    h += '<tr><td>' + medal + '</td><td>' + esc(c.name) + (c.sup ? ' <span style="color:var(--gold)">🐾</span>' : '') + (c.name === card.name ? " (you)" : "") + (c.name === card.name && isParkAdmin() ? ' <span style="color:var(--gold)">👑 TOP DOG ADMIN</span>' : "") + (c.name !== card.name && c.name.charAt(0) === "@" ? ' <button class="btn ghost small" data-callout="' + esc(c.name.replace(/^@+/, "")) + '">📣 CALL OUT</button>' : "") + '</td><td>' + rankEmoji(c.tot.points) + ' ' + rankTitle(c.tot.points) + '</td><td>' + c.tot.points + '</td><td>' + c.tot.picks + '</td><td>' + pct(c.tot.wins, c.tot.picks) + '%</td><td>' + c.tot.dh + '</td></tr>'; });
+    h += '<tr><td>' + medal + '</td><td>' + esc(c.name) + (c.sup ? ' <span style="color:var(--gold)">🐾</span>' : '') + (c.name === card.name ? " (you)" : "") + (c.name === card.name && isParkAdmin() ? ' <span style="color:var(--gold)">👑 TOP DOG ADMIN</span>' : "") + (c.name !== card.name && c.name.charAt(0) === "@" ? ' <button class="btn ghost small" data-callout="' + esc(c.name.replace(/^@+/, "")) + '">📣 CALL OUT</button> <button class="btn ghost small" data-page="' + esc(c.name.replace(/^@+/, "")) + '">📄 PAGE</button>' : "") + '</td><td>' + rankEmoji(c.tot.points) + ' ' + rankTitle(c.tot.points) + '</td><td>' + c.tot.points + '</td><td>' + c.tot.picks + '</td><td>' + pct(c.tot.wins, c.tot.picks) + '%</td><td>' + c.tot.dh + '</td></tr>'; });
   if(save.invitedBy) h += '<div class="card"><div class="joinline">🐾 You came in on <b>' + esc(save.invitedBy) + '</b>\'s invite, so their card is already on your Park Board below. Make your picks, then send your own invite link and grow your board.</div></div>';
   h += '</table></div><div class="small mut" style="margin-top:8px">Send your invite link: one tap puts your card on a friend\'s Park Board and brings them into the game. Season codes still work too. The weekly leaderboard lives on Facebook, cards posted every Monday.</div>' +
     '<button class="btn" id="inviteBtn">INVITE A PLAYER</button> <button class="btn ghost" id="shareBtn">SHARE MY CARD</button> <button class="btn ghost" id="cardImgBtn">DOG TAG CARD IMAGE</button> <button class="btn ghost" id="copyBtn">COPY MY SEASON CODE</button>' +
@@ -1306,6 +1307,7 @@ function renderYard(){
     '<div style="margin-top:14px"><input type="text" id="importBox" placeholder="Paste a friend\'s DP- season code"></div>' +
     '<button class="btn ghost small" id="importBtn">ADD TO THE BOARD</button> <span class="small" id="importMsg"></span></div>';
   h += safeHTML(calloutsHTML);
+  h += safeHTML(ownChalkHTML);
   h += '<div class="card"><div class="rankline">HOW SCORING WORKS</div><div class="small" style="line-height:1.7;margin-top:6px">' +
     'Pick the winner and call the margin. Beat the number, bank the points: an exact margin is a <b style="color:var(--gold)">Direct Hit, 100 points</b>. ' +
     'Every point you are off inside ten costs 10: off by 1 scores 90, off by 2 scores 80, and so on. Miss the winner, or land outside ten, and the game scores 0. No negatives, ever. ' +
@@ -1320,6 +1322,7 @@ function renderYard(){
   wireCallouts();
   wireTalkDeletes(document);
   wireReport();
+  wirePageButtons();
   ["joinUser", "joinEmail", "joinCode"].forEach(id => { const el = document.getElementById(id); if(el && keep[id]) el.value = keep[id]; });
   if(keepStep2 && document.getElementById("joinStep2")) document.getElementById("joinStep2").style.display = keepStep2;
   if(keepMsg && document.getElementById("joinMsg")) document.getElementById("joinMsg").textContent = keepMsg;
@@ -1488,6 +1491,61 @@ function wireReport(){
   }
   const b = document.getElementById("bugSend"); if(b) b.addEventListener("click", () => send("bug"));
   const i = document.getElementById("ideaSend"); if(i) i.addEventListener("click", () => send("idea"));
+}
+let pageUser = null, boardCache = [];
+function pageScope(name){ return "page:" + String(name || "").replace(/^@+/, "").toLowerCase(); }
+function openPage(name){
+  pageUser = String(name || "").replace(/^@+/, "");
+  if(!pageUser) return;
+  view = "PAGE";
+  fetchTalkFeed(pageScope(pageUser));
+  render();
+  window.scrollTo(0, 0);
+}
+function wirePageButtons(){
+  document.querySelectorAll("[data-page]").forEach(btn => btn.addEventListener("click", () => openPage(btn.getAttribute("data-page") || "")));
+}
+function renderPage(){
+  const v = document.getElementById("view"); if(!v || !pageUser) return;
+  const scope = pageScope(pageUser);
+  const mine = !!(save.member && save.member.username.toLowerCase() === pageUser.toLowerCase());
+  const pc = boardCache.find(c => c.name.replace(/^@+/, "").toLowerCase() === pageUser.toLowerCase());
+  let h = '<div class="card"><div class="rankline">\ud83d\udcc4 PLAYER PAGE</div>' +
+    '<div style="font-family:Oswald,sans-serif;font-size:30px;font-weight:700;margin-top:6px">@' + esc(pageUser) + (pc && pc.sup ? ' <span style="color:var(--gold)">\ud83d\udc3e</span>' : '') + '</div>' +
+    (pc ? '<div class="joinline" style="margin-top:4px">' + rankEmoji(pc.tot.points) + ' <b>' + rankTitle(pc.tot.points) + '</b> \u00b7 ' + pc.tot.points + ' points \u00b7 ' + pc.tot.picks + ' picks \u00b7 ' + pct(pc.tot.wins, pc.tot.picks) + '% wins \u00b7 ' + pc.tot.dh + ' Direct Hits</div>' : '<div class="joinline" style="margin-top:4px">A verified Park player.</div>') +
+    '<div style="margin-top:10px"><button class="btn ghost small" data-backyard="1">\u2190 BACK TO MY PARK</button></div></div>';
+  const notes = talkCache[scope];
+  h += '<div class="card"><div class="rankline">\ud83e\uddf1 THE CHALKBOARD</div>' +
+    '<div class="joinline" style="margin-top:6px">' + (mine ? 'Your wall. Notes other players leave you wait here, like the old Yard.' : 'Leave a note for @' + esc(pageUser) + '. It waits on their page until they wander by, like the old Yard.') + '</div>' +
+    (notes ? (notes.length ? notes.slice().reverse().map(m => talkRowHTML(m, scope)).join("") : '<div class="small mut" style="margin-top:8px">No notes yet. Be the first to write on the wall.</div>') : '<div class="small mut" style="margin-top:8px">Loading the wall...</div>') +
+    (save.member ? '<div style="margin-top:10px"><input type="text" id="pageIn" maxlength="200" placeholder="Write on the wall as @' + esc(save.member.username) + '..."><button class="btn small" id="pageSend" style="margin-top:6px">POST NOTE</button> <span class="small" id="pageMsg"></span></div>' : '<div class="small mut" style="margin-top:8px">Register your @name in MY PARK to write on the wall.</div>') +
+    '</div>';
+  v.innerHTML = h;
+  const back = v.querySelector("[data-backyard]"); if(back) back.addEventListener("click", () => { view = "YARD"; render(); });
+  const send = document.getElementById("pageSend");
+  if(send) send.addEventListener("click", async () => {
+    const msg = document.getElementById("pageMsg");
+    const text = (document.getElementById("pageIn").value || "").trim();
+    if(!text){ if(msg) msg.textContent = "Write the note first."; return; }
+    if(msg) msg.textContent = "Posting...";
+    const res = await parkPost({action: "postTalk", username: save.member.username, token: save.member.token, scope: scope, target: pageUser, text: text});
+    if(res && res.ok){ talkCache[scope] = null; await fetchTalkFeed(scope); render(); }
+    else if(msg) msg.textContent = (res && res.why) || "That did not post.";
+  });
+  wireTalkDeletes(v);
+}
+function ownChalkHTML(){
+  if(!save.member) return "";
+  const scope = pageScope(save.member.username);
+  const notes = talkCache[scope];
+  return '<div class="card"><div class="rankline">\ud83e\uddf1 YOUR CHALKBOARD</div>' +
+    '<div class="joinline" style="margin-top:6px">Notes other players leave on your page wait for you here.</div>' +
+    (notes ? (notes.length ? notes.slice().reverse().map(m => talkRowHTML(m, scope)).join("") : '<div class="small mut" style="margin-top:8px">No notes yet. Your wall is clean.</div>') : '<div class="small mut" style="margin-top:8px">Loading your wall...</div>') +
+    '<div style="margin-top:8px"><button class="btn ghost small" data-page="' + esc(save.member.username) + '">VIEW YOUR PAGE</button></div></div>';
+}
+function canDeleteTalk(scope){
+  if(isParkAdmin()) return true;
+  return !!(save.member && scope === "page:" + save.member.username.toLowerCase());
 }
 function memberCardHTML(){
   if(save.member){
@@ -1782,6 +1840,7 @@ function render(){
   document.querySelectorAll("[id^='talkIn-']").forEach(inp => { talkDrafts[inp.id.slice(7)] = inp.value; });
   renderNav(); setUpdated();
   if(view === "LIVE") renderLive();
+  else if(view === "PAGE") renderPage();
   else if(view === "YARD") renderYard();
   else renderSport(view);
 }
@@ -1804,6 +1863,7 @@ async function refresh(rerender){
   if(save.member && !syncPulled){ syncPulled = true; parkSyncCard(); }
   fetchTalkFeed("callouts");
   if(isParkAdmin()){ fetchTalkFeed("bugs"); fetchTalkFeed("ideas"); }
+  if(save.member) fetchTalkFeed(pageScope(save.member.username));
   render();
 }
 function scheduleAuto(){
