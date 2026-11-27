@@ -392,7 +392,10 @@ function gradeAll(events){
     if(ev.state === "post" && ev.completed){
       const p = save.picks[ev.id];
       if(p && p.sport && ev.sport && p.sport !== ev.sport) continue;
-      if(p && (p.pts === null || p.pts === undefined)){ gradePick(p, ev); if(p.pts !== null && p.pts !== undefined) parkPushResult(ev.id); }
+      if(p && (p.pts === null || p.pts === undefined)){
+        if(ev.sport !== "UFC"){ const pg = parkData[ev.id]; if(pg && pg.n) p.parkCall = pg.ysSigned; const ls = save.lineSnap ? save.lineSnap[ev.id] : undefined; if(ls !== undefined && ls !== null) p.lineCall = ls; }
+        gradePick(p, ev); if(p.pts !== null && p.pts !== undefined) parkPushResult(ev.id);
+      }
     }
   }
 }
@@ -618,6 +621,94 @@ function wireCallouts(){
     if(res && res.ok){ calloutTarget = ""; talkCache["callouts"] = null; await fetchTalkFeed("callouts"); render(); }
     else if(msg) msg.textContent = (res && res.why) || "That did not post.";
   });
+}
+function recordsHTML(){
+  const card = myCard();
+  const graded = Object.values(save.picks).filter(p => p.pts !== null && p.pts !== undefined)
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+  if(!graded.length) return "";
+  let best = 0, run = 0;
+  for(const p of graded){ if(p.win){ run++; if(run > best) best = run; } else run = 0; }
+  let tail = 0, tailWin = null;
+  for(let i = graded.length - 1; i >= 0; i--){ const w = !!graded[i].win; if(tailWin === null){ tailWin = w; tail = 1; } else if(w === tailWin) tail++; else break; }
+  const cur = tailWin ? tail : -tail;
+  let bestCall = null;
+  for(const p of graded){ if(!bestCall || p.pts > bestCall.pts) bestCall = p; }
+  const bcLabel = bestCall ? (bestCall.sport === "UFC"
+    ? esc(bestCall.finalScore || "UFC pick") + " \u00b7 " + bestCall.pts + " pts"
+    : esc(bestCall.side === "home" ? (bestCall.homeAbbr || "") : (bestCall.awayAbbr || "")) + " by " + bestCall.margin + " \u00b7 actual margin " + bestCall.actualMargin + " \u00b7 " + bestCall.pts + " pts") : "";
+  let hb = 0;
+  for(const p of graded){
+    if(!p.win || p.dh) continue;
+    const err = Math.abs(p.margin - p.actualMargin);
+    if(p.sport === "UFC"){ if(err === 1) hb++; }
+    else if(err >= 1 && err <= 3) hb++;
+  }
+  function vsRecord(key){
+    let you = 0, them = 0, even = 0, n = 0, yourMiss = 0, theirMiss = 0;
+    for(const p of graded){
+      if(p.sport === "UFC") continue;
+      const theirs = p[key]; if(theirs === null || theirs === undefined || !p.winnerSide) continue;
+      const actual = p.winnerSide === "home" ? p.actualMargin : -p.actualMargin;
+      const mine = p.side === "home" ? p.margin : -p.margin;
+      const ym = Math.abs(mine - actual), tm = Math.abs(theirs - actual);
+      n++; yourMiss += ym; theirMiss += tm;
+      if(ym < tm) you++; else if(tm < ym) them++; else even++;
+    }
+    return n ? { n: n, you: you, them: them, even: even, yourAvg: (yourMiss / n).toFixed(1), theirAvg: (theirMiss / n).toFixed(1) } : null;
+  }
+  const vsPark = vsRecord("parkCall"), vsLine = vsRecord("lineCall");
+  const wk = weekKey(new Date());
+  const weekPicks = graded.filter(p => p.week === wk);
+  const weekPts = weekPicks.reduce((a, p) => a + (p.pts || 0), 0);
+  const weekDh = weekPicks.filter(p => p.dh).length;
+  let favSport = "", favPts = 0;
+  for(const k of Object.keys(SPORTS)){ if(card.per[k] && card.per[k].points > favPts){ favPts = card.per[k].points; favSport = SPORTS[k].label; } }
+  const ladder = [[250, "Regular"], [750, "Sharp"], [1500, "Contender"], [3000, "Top Dog"], [6000, "Yardstick Master"]];
+  const pts = card.tot.points;
+  const next = ladder.find(([t]) => pts < t);
+  let rankLine;
+  if(next){ const pct = Math.min(100, Math.round(100 * pts / next[0])); rankLine = '<div style="margin-top:8px"><div class="small">Next rank: <b>' + next[1] + '</b> at ' + next[0] + ' pts \u00b7 ' + (next[0] - pts) + ' to go</div><div style="height:10px;background:var(--panel2);border-radius:6px;margin-top:4px;overflow:hidden"><div style="height:100%;width:' + pct + '%;background:var(--gold)"></div></div></div>'; }
+  else rankLine = '<div class="small" style="margin-top:8px">Top rank reached: <b>Yardstick Master</b>. Nothing above you.</div>';
+  let h = '<div class="card"><div class="rankline">\ud83c\udfc5 YOUR RECORDS</div>';
+  h += '<div class="statgrid" style="margin-top:8px">' +
+    stat("Current streak", (cur > 0 ? "W" + cur : cur < 0 ? "L" + (-cur) : "\u00b7")) +
+    stat("Best win streak", best ? "W" + best : "\u00b7") +
+    stat("Heartbreakers", String(hb)) +
+    stat("Best sport", favSport || "\u00b7") + '</div>';
+  if(bestCall) h += '<div class="joinline">\ud83c\udfaf Best call ever: <b>' + bcLabel + '</b></div>';
+  if(vsPark) h += '<div class="joinline">You vs the Park: <b>' + vsPark.you + " closer \u00b7 " + vsPark.them + " Park closer" + (vsPark.even ? " \u00b7 " + vsPark.even + " even" : "") + '</b> over ' + vsPark.n + ' games \u00b7 your average miss ' + vsPark.yourAvg + ", the Park's " + vsPark.theirAvg + '</div>';
+  if(vsLine) h += '<div class="joinline">You vs the Line: <b>' + vsLine.you + " closer \u00b7 " + vsLine.them + " line closer" + (vsLine.even ? " \u00b7 " + vsLine.even + " even" : "") + '</b> over ' + vsLine.n + ' games \u00b7 your average miss ' + vsLine.yourAvg + ", the line's " + vsLine.theirAvg + '</div>';
+  if(weekPicks.length) h += '<div class="joinline">\ud83d\udcc5 This week: <b>' + weekPts + ' pts</b> from ' + weekPicks.length + ' graded picks' + (weekDh ? ' \u00b7 ' + weekDh + ' Direct Hit' + (weekDh > 1 ? "s" : "") : '') + '</div>';
+  h += rankLine + '</div>';
+  return h;
+}
+function trendsHTML(){
+  const ids = Object.keys(parkData); if(!ids.length) return "";
+  let totalPicks = 0, mostGame = null, mostN = 0, boldest = null, boldDiff = -1, leanGame = null, leanDiff = -1;
+  const perSport = {};
+  for(const id of ids){
+    const pg = parkData[id]; const ev = findEvent(id);
+    totalPicks += pg.n;
+    if(ev) perSport[ev.sport] = (perSport[ev.sport] || 0) + pg.n;
+    if(pg.n > mostN){ mostN = pg.n; mostGame = ev; }
+    if(ev && ev.sport !== "UFC" && pg.ysSigned !== undefined && pg.ysSigned !== null){
+      const line = ev.yardstick ? (ev.yardstick.side === "home" ? ev.yardstick.margin : -ev.yardstick.margin) : 0;
+      const d = Math.abs(pg.ysSigned - line);
+      if(pg.n >= 2 && d > leanDiff){ leanDiff = d; leanGame = { ev: ev, ys: pg.ysSigned, line: line }; }
+      if(Math.abs(pg.ysSigned) > boldDiff){ boldDiff = Math.abs(pg.ysSigned); boldest = { ev: ev, ys: pg.ysSigned }; }
+    }
+  }
+  if(!totalPicks) return "";
+  function favLabel(ev, signed){ const side = signed >= 0 ? "home" : "away"; return esc(side === "home" ? ev.home.abbr : ev.away.abbr) + " by " + (Math.round(Math.abs(signed) * 10) / 10); }
+  let hotSport = "", hotN = 0;
+  for(const k of Object.keys(perSport)){ if(perSport[k] > hotN){ hotN = perSport[k]; hotSport = SPORTS[k] ? SPORTS[k].label : k; } }
+  let h = '<div class="card"><div class="rankline">\ud83d\udd25 PARK TRENDS</div><div style="margin-top:6px">';
+  if(mostGame) h += '<div class="joinline">Most backed game: <b>' + esc(mostGame.away.abbr) + " at " + esc(mostGame.home.abbr) + '</b> \u00b7 ' + mostN + ' Park picks</div>';
+  if(leanGame) h += '<div class="joinline">Park vs the Line: the Park leans <b>' + favLabel(leanGame.ev, leanGame.ys) + '</b> on ' + esc(leanGame.ev.away.abbr) + " at " + esc(leanGame.ev.home.abbr) + ' where the line says ' + favLabel(leanGame.ev, leanGame.line) + '</div>';
+  if(boldest) h += '<div class="joinline">Boldest Park call: <b>' + favLabel(boldest.ev, boldest.ys) + '</b> (' + esc(boldest.ev.away.abbr) + " at " + esc(boldest.ev.home.abbr) + ')</div>';
+  if(hotSport) h += '<div class="joinline">Hottest sport in the Park: <b>' + esc(hotSport) + '</b> \u00b7 ' + hotN + ' picks</div>';
+  return h + '</div></div>';
 }
 function renderNav(){
   const nav = document.getElementById("sportNav");
@@ -1146,7 +1237,9 @@ function renderYard(){
     '<div class="rankline">Rank: ' + rankEmoji(card.tot.points) + ' <b>' + rankTitle(card.tot.points) + '</b> · ' + card.tot.points + ' total points · ' + card.tot.dh + ' Direct Hits</div></div>';
   h += lockedPicksHTML();
   h += parkMeterHTML();
+  h += trendsHTML();
   h += myGraphsHTML();
+  h += recordsHTML();
   h += '<div class="card"><div class="tblwrap"><table><tr><th>LEAGUE</th><th>POINTS</th><th>PICKS</th><th>WINS</th><th>WIN %</th><th>PTS WIN %</th><th>DIRECT HITS</th></tr>';
   for(const k of Object.keys(SPORTS)){
     const s = card.per[k];
@@ -1272,7 +1365,7 @@ function parkPostPickObj(gameId){
 }
 function parkPushResult(gameId){
   const p = save.picks[gameId]; if(!p || !save.member || p.pts === null || p.pts === undefined) return;
-  parkPost({action: "saveResult", username: save.member.username, token: save.member.token, gameId: gameId, sport: p.sport, side: p.side, margin: p.margin, gameStart: p.date, pts: p.pts, dh: !!p.dh, actualMargin: p.actualMargin, winnerSide: p.winnerSide || "", finalScore: p.finalScore || "", awayAbbr: p.awayAbbr || "", homeAbbr: p.homeAbbr || "", awayName: p.awayName || "", homeName: p.homeName || ""});
+  parkPost({action: "saveResult", username: save.member.username, token: save.member.token, gameId: gameId, sport: p.sport, side: p.side, margin: p.margin, gameStart: p.date, pts: p.pts, dh: !!p.dh, actualMargin: p.actualMargin, winnerSide: p.winnerSide || "", finalScore: p.finalScore || "", awayAbbr: p.awayAbbr || "", homeAbbr: p.homeAbbr || "", awayName: p.awayName || "", homeName: p.homeName || "", parkCall: p.parkCall, lineCall: p.lineCall});
 }
 let syncPulled = false;
 async function parkSyncCard(){
@@ -1292,6 +1385,8 @@ async function parkSyncCard(){
         date: sp.gameStart, week: sp.gameStart ? weekKey(new Date(sp.gameStart)) : "",
         pts: (sp.pts === undefined ? null : sp.pts), dh: !!sp.dh };
       if(sp.pts !== null && sp.pts !== undefined){ np.actualMargin = sp.actualMargin; np.winnerSide = sp.winnerSide || null; np.finalScore = sp.finalScore || ""; np.win = sp.winnerSide ? (sp.side === sp.winnerSide) : false; }
+      if(sp.parkCall !== null && sp.parkCall !== undefined) np.parkCall = sp.parkCall;
+      if(sp.lineCall !== null && sp.lineCall !== undefined) np.lineCall = sp.lineCall;
       save.picks[sp.gameId] = np;
       changed = true;
     } else {
@@ -1300,6 +1395,8 @@ async function parkSyncCard(){
         lp.win = sp.winnerSide ? (lp.side === sp.winnerSide) : false;
         changed = true;
       }
+      if((lp.parkCall === null || lp.parkCall === undefined) && sp.parkCall !== null && sp.parkCall !== undefined){ lp.parkCall = sp.parkCall; changed = true; }
+      if((lp.lineCall === null || lp.lineCall === undefined) && sp.lineCall !== null && sp.lineCall !== undefined){ lp.lineCall = sp.lineCall; changed = true; }
       if(!sp.awayAbbr && lp.awayAbbr) parkPostPickObj(sp.gameId);
     }
   }
