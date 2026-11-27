@@ -1377,12 +1377,14 @@ function renderYard(){
   h += supporterCardHTML();
   h += transferCardHTML();
   h += safeHTML(reportCardHTML);
+  h += safeHTML(verifyCardHTML);
   v.innerHTML = h;
   wireMemberCard();
   wireTransferCard();
   wireCallouts();
   wireTalkDeletes(document);
   wireReport();
+  wireVerify();
   wirePageButtons();
   wireProfile();
   ["joinUser", "joinEmail", "joinCode"].forEach(id => { const el = document.getElementById(id); if(el && keep[id]) el.value = keep[id]; });
@@ -1558,6 +1560,49 @@ function wireReport(){
   const b = document.getElementById("bugSend"); if(b) b.addEventListener("click", () => send("bug"));
   const i = document.getElementById("ideaSend"); if(i) i.addEventListener("click", () => send("idea"));
 }
+let verifyName = "", verifyHTML = "";
+function verifyCardHTML(){
+  if(!isParkAdmin()) return "";
+  let h = '<div class="card"><div class="rankline">\ud83d\udd0e VERIFY A PLAYER (ADMIN)</div><div class="small mut" style="margin-top:4px">The Brain\u2019s own read on any member: the source of truth for points, Direct Hits and supporter claims.</div>';
+  h += '<div class="pickrow" style="margin-top:8px"><input type="text" id="vfName" maxlength="17" placeholder="@name to verify" value="' + esc(verifyName) + '"><button class="btn small" id="vfGo">LOOK UP</button></div>';
+  h += '<div id="vfOut">' + verifyHTML + '</div></div>';
+  return h;
+}
+function verifyResultHTML(r){
+  let h = '<div style="margin-top:8px"><div class="rankline" style="font-size:15px">@' + esc(r.username) + (r.supporter ? ' \ud83d\udc3e' : '') + '</div>';
+  if(r.college) h += '<div class="small mut">\ud83c\udf93 ' + esc(r.college) + '</div>';
+  h += '<div class="statgrid" style="margin-top:6px">' +
+    stat("Total points", String(r.totalPts)) +
+    stat("Direct Hits", String(r.dh)) +
+    stat("Graded picks", String(r.graded)) +
+    stat("Best week", r.bestWeekPts ? (r.bestWeekPts + " pts") : "\u00b7") + '</div>';
+  h += '<div class="small mut" style="margin-top:4px">' + r.totalPicks + ' picks on record \u00b7 supporter: <b style="color:var(--ink)">' + (r.supporter ? "yes \ud83d\udc3e" : "no") + '</b>' + (r.bestWeekStart ? ' \u00b7 best week starts ' + esc(r.bestWeekStart) : '') + '</div>';
+  const sp = Object.keys(r.perSport || {}).filter(k => r.perSport[k] !== 0);
+  if(sp.length) h += '<div class="small mut">By sport: ' + sp.map(k => esc((SPORTS[k] ? SPORTS[k].label : k)) + " " + r.perSport[k]).join(" \u00b7 ") + '</div>';
+  if(r.recent && r.recent.length){
+    h += '<div class="small" style="font-weight:800;letter-spacing:.05em;margin-top:6px">LATEST PICKS ON RECORD</div>';
+    for(const p of r.recent){
+      const team = p.side === "home" ? (p.homeAbbr || "") : (p.awayAbbr || "");
+      h += '<div class="joinline">' + esc(p.awayAbbr || "") + " at " + esc(p.homeAbbr || "") + ' \u00b7 took ' + esc(team) + " by " + p.margin + (p.pts === null || p.pts === undefined ? ' \u00b7 not graded yet' : ' \u00b7 <b>' + p.pts + ' pts</b>' + (p.dh ? ' \ud83c\udfc6' : '') + (p.finalScore ? ' \u00b7 ' + esc(p.finalScore) : '')) + '</div>';
+    }
+  }
+  return h + '</div>';
+}
+function wireVerify(){
+  const b = document.getElementById("vfGo"); if(!b) return;
+  b.addEventListener("click", async () => {
+    const inp = document.getElementById("vfName");
+    const target = (inp ? inp.value : "").replace(/^@+/, "").trim();
+    const out = document.getElementById("vfOut");
+    if(!target){ if(out) out.innerHTML = '<div class="small" style="margin-top:6px">Type an @name first.</div>'; return; }
+    verifyName = target;
+    if(out) out.innerHTML = '<div class="small mut" style="margin-top:6px">Checking the Brain...</div>';
+    const res = await parkPost({action: "adminCard", username: save.member.username, token: save.member.token, target: target});
+    if(res && res.ok){ try { verifyHTML = verifyResultHTML(res); } catch(e) { verifyHTML = '<div class="small" style="margin-top:6px">The Brain answered, but the card did not draw.</div>'; } }
+    else { verifyHTML = '<div class="small" style="margin-top:6px">' + esc((res && res.why) || "That lookup failed.") + '</div>'; }
+    render();
+  });
+}
 let pageUser = null, boardCache = [];
 let directory = null, profDrafts = null;
 const FAV_LEAGUES = ["NFL", "NBA", "NCAAF", "NCAAB", "NHL"];
@@ -1701,7 +1746,7 @@ function validParkCode(code){
   return A.charAt(sum % A.length) === chk;
 }
 function supporterCardHTML(){
-  const more = '<div class="small" style="margin-top:10px">More ways to back the Park: <a href="https://buy.stripe.com/8x28wQdskbste0a5wNbQY06" target="_blank" rel="noopener" style="color:var(--gold)">Supporter Fund $10</a> · <a href="https://buy.stripe.com/8x2eVegEwbst5tEbVbbQY07" target="_blank" rel="noopener" style="color:var(--gold)">$15</a> · <a href="https://buy.stripe.com/aFaaEYcogeEF3lw6ARbQY08" target="_blank" rel="noopener" style="color:var(--gold)">$20</a> · <a href="https://dogparkgames.blogspot.com/p/supporters.html" target="_blank" rel="noopener" style="color:var(--gold)">the Wall of Fame</a><br>Custom amount: email strongmindgrow@gmail.com and we will send a checkout link.</div>';
+  const more = '<div class="small" style="margin-top:10px">Or back the Park monthly: <a href="https://buy.stripe.com/5kQfZibkc0NP8FQ3oFbQY09" target="_blank" rel="noopener" style="color:var(--gold)">Dog Park Membership, $5 a month</a> (same gold name and paw badge, cancel anytime).<br>More ways to back the Park: <a href="https://buy.stripe.com/8x28wQdskbste0a5wNbQY06" target="_blank" rel="noopener" style="color:var(--gold)">Supporter Fund $10</a> · <a href="https://buy.stripe.com/8x2eVegEwbst5tEbVbbQY07" target="_blank" rel="noopener" style="color:var(--gold)">$15</a> · <a href="https://buy.stripe.com/aFaaEYcogeEF3lw6ARbQY08" target="_blank" rel="noopener" style="color:var(--gold)">$20</a> · <a href="https://dogparkgames.blogspot.com/p/supporters.html" target="_blank" rel="noopener" style="color:var(--gold)">the Wall of Fame</a><br>Custom amount: email strongmindgrow@gmail.com and we will send a checkout link.</div>';
   if(save.supporter) return '<div class="card"><div class="rankline">🐾 SUPPORTER PASS</div><div class="joinline" style="margin-top:6px"><b style="color:var(--gold)">Park Supporter</b> · thanks for backing the Park. Your gold name and paw badge are on.</div>' + more + '</div>';
   return '<div class="card"><div class="rankline">🐾 SUPPORTER PASS</div>' +
     '<div class="joinline" style="margin-top:6px">Back the Park for <b>$5, one time</b>: a gold name and paw badge on your Score Card and the Park Board, plus the Supporter trophy. The game stays free for everyone, always.</div>' +
@@ -1966,6 +2011,7 @@ function checkInviteLink(){
 }
 function render(){
   document.querySelectorAll("[id^='talkIn-']").forEach(inp => { talkDrafts[inp.id.slice(7)] = inp.value; });
+  const vfEl = document.getElementById("vfName"); if(vfEl) verifyName = vfEl.value;
   const pcEl = document.getElementById("profCollege");
   if(pcEl){ profDrafts = { college: pcEl.value, favs: {} }; FAV_LEAGUES.forEach(k => { const f = document.getElementById("fav" + k); profDrafts.favs[k] = f ? f.value : ""; }); }
   renderNav(); setUpdated();
