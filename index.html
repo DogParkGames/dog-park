@@ -618,6 +618,7 @@ function wireTalkSend(root){
     if(!text){ if(msg) msg.textContent = "Write something first."; return; }
     if(msg) msg.textContent = "Posting...";
     const res = await parkPost({action: "postTalk", username: save.member.username, token: save.member.token, scope: gid, text: text});
+    noteBrainAuth(res);
     if(res && res.ok){ talkCache[gid] = null; loadTalk(gid); }
     else if(msg) msg.textContent = (res && res.why) || "That did not post.";
   }));
@@ -649,6 +650,7 @@ function wireCallouts(){
     if(!target || !text){ if(msg) msg.textContent = "Name a rival and write the callout."; return; }
     if(msg) msg.textContent = "Posting...";
     const res = await parkPost({action: "postTalk", username: save.member.username, token: save.member.token, scope: "callouts", target: target, text: text});
+    noteBrainAuth(res);
     if(res && res.ok){ calloutTarget = ""; talkCache["callouts"] = null; await fetchTalkFeed("callouts"); render(); }
     else if(msg) msg.textContent = (res && res.why) || "That did not post.";
   });
@@ -1545,8 +1547,8 @@ async function parkSyncCard(){
   if(!res || !res.ok || !Array.isArray(res.picks)) return;
   if(brainAuthFailed){ brainAuthFailed = false; if(view === "YARD") render(); }
   let changed = false;
-  if(res.college !== undefined || res.favs !== undefined){
-    const np = { college: res.college || "", favs: res.favs || {} };
+  if(res.hometown !== undefined || res.favs !== undefined){
+    const np = { hometown: res.hometown || "", favs: res.favs || {} };
     if(JSON.stringify(np) !== JSON.stringify(save.profile || {})){ save.profile = np; changed = true; }
   }
   const serverIds = {};
@@ -1633,7 +1635,7 @@ function verifyCardHTML(){
 }
 function verifyResultHTML(r){
   let h = '<div style="margin-top:8px"><div class="rankline" style="font-size:15px">@' + esc(r.username) + (r.supporter ? ' \ud83d\udc3e' : '') + '</div>';
-  if(r.college) h += '<div class="small mut">\ud83c\udf93 ' + esc(r.college) + '</div>';
+  if(r.hometown) h += '<div class="small mut">\ud83d\udccd ' + esc(r.hometown) + '</div>';
   h += '<div class="statgrid" style="margin-top:6px">' +
     stat("Total points", String(r.totalPts)) +
     stat("Direct Hits", String(r.dh)) +
@@ -1661,6 +1663,7 @@ function wireVerify(){
     verifyName = target;
     if(out) out.innerHTML = '<div class="small mut" style="margin-top:6px">Checking the Brain...</div>';
     const res = await parkPost({action: "adminCard", username: save.member.username, token: save.member.token, target: target});
+    noteBrainAuth(res);
     if(res && res.ok){ try { verifyHTML = verifyResultHTML(res); } catch(e) { verifyHTML = '<div class="small" style="margin-top:6px">The Brain answered, but the card did not draw.</div>'; } }
     else { verifyHTML = '<div class="small" style="margin-top:6px">' + esc((res && res.why) || "That lookup failed.") + '</div>'; }
     render();
@@ -1669,6 +1672,7 @@ function wireVerify(){
 let pageUser = null, boardCache = [];
 let directory = null, profDrafts = null;
 const FAV_LEAGUES = ["NFL", "NBA", "NCAAF", "NCAAB", "NHL"];
+const LEAGUE_ICON = {NFL: "🏈", NBA: "🏀", NCAAF: "🏈", NCAAB: "🏀", NHL: "🏒"};
 function pageScope(name){ return "page:" + String(name || "").replace(/^@+/, "").toLowerCase(); }
 function openPage(name){
   pageUser = String(name || "").replace(/^@+/, "");
@@ -1687,11 +1691,11 @@ function renderPage(){
   const mine = !!(save.member && save.member.username.toLowerCase() === pageUser.toLowerCase());
   const pc = boardCache.find(c => c.name.replace(/^@+/, "").toLowerCase() === pageUser.toLowerCase());
   const dirEntry = (directory || []).find(m => String(m.username).toLowerCase() === pageUser.toLowerCase());
-  const prof = mine ? myProfile() : (dirEntry ? { college: dirEntry.college || "", favs: dirEntry.favs || {} } : null);
+  const prof = mine ? myProfile() : (dirEntry ? { hometown: dirEntry.hometown || "", favs: dirEntry.favs || {} } : null);
   let colors = "";
-  if(prof && (prof.college || FAV_LEAGUES.some(k => prof.favs && prof.favs[k]))){
-    colors = '<div style="margin-top:8px">' + (prof.college ? '<div class="joinline">\ud83c\udf93 <b>' + esc(prof.college) + '</b></div>' : '') +
-      FAV_LEAGUES.filter(k => prof.favs && prof.favs[k]).map(k => '<span style="display:inline-block;padding:3px 9px;border:1px solid var(--line);border-radius:999px;margin:4px 4px 0 0;font-size:12px;font-weight:700">' + SPORTS[k].label + ': ' + esc(prof.favs[k]) + '</span>').join("") + '</div>';
+  if(prof && (prof.hometown || FAV_LEAGUES.some(k => prof.favs && prof.favs[k]))){
+    colors = '<div style="margin-top:8px">' + (prof.hometown ? '<div class="joinline">\ud83d\udccd <b>' + esc(prof.hometown) + '</b></div>' : '') +
+      FAV_LEAGUES.filter(k => prof.favs && prof.favs[k]).map(k => '<span style="display:inline-block;padding:3px 9px;border:1px solid var(--line);border-radius:999px;margin:4px 4px 0 0;font-size:12px;font-weight:700">' + (LEAGUE_ICON[k] || '') + ' ' + esc(prof.favs[k]) + '</span>').join("") + '</div>';
   }
   let h = '<div class="card"><div class="rankline">\ud83d\udcc4 PLAYER PAGE</div>' +
     '<div style="font-family:Oswald,sans-serif;font-size:30px;font-weight:700;margin-top:6px">@' + esc(pageUser) + (pc && pc.sup ? ' <span style="color:var(--gold)">\ud83d\udc3e</span>' : '') + '</div>' +
@@ -1712,6 +1716,7 @@ function renderPage(){
     if(!text){ if(msg) msg.textContent = "Write the note first."; return; }
     if(msg) msg.textContent = "Posting...";
     const res = await parkPost({action: "postTalk", username: save.member.username, token: save.member.token, scope: scope, target: pageUser, text: text});
+    noteBrainAuth(res);
     if(res && res.ok){ talkCache[scope] = null; await fetchTalkFeed(scope); render(); }
     else if(msg) msg.textContent = (res && res.why) || "That did not post.";
   });
@@ -1719,7 +1724,7 @@ function renderPage(){
 }
 function myProfile(){
   const p = save.profile || {};
-  return { college: p.college || "", favs: p.favs || {} };
+  return { hometown: p.hometown || "", favs: p.favs || {} };
 }
 function teamList(sport){
   const set = {};
@@ -1730,23 +1735,27 @@ function profileCardHTML(){
   if(!save.member) return "";
   const cur = profDrafts || myProfile();
   let h = '<div class="card"><div class="rankline">\ud83c\udfa8 YOUR COLORS</div>' +
-    '<div class="joinline" style="margin-top:6px">Your college and favorite teams ride on your player page, and your college puts you in the directory so your people can find you.</div>' +
-    '<div style="margin-top:8px"><input type="text" id="profCollege" maxlength="60" placeholder="Your college (e.g. Oregon State)" value="' + esc(cur.college || "") + '"></div>';
+    '<div class="joinline" style="margin-top:6px">Where you are from and your favorite teams ride on your player page as your colors, and your hometown puts you in the directory so your people can find you.</div>' +
+    '<div style="margin-top:8px"><input type="text" id="profFrom" maxlength="60" placeholder="Where are you from? (e.g. Salem, Oregon)" value="' + esc(cur.hometown || "") + '"></div>';
   FAV_LEAGUES.forEach(k => {
     h += '<div style="margin-top:8px"><input type="text" id="fav' + k + '" list="dl' + k + '" maxlength="40" placeholder="' + SPORTS[k].label + ' favorite team" value="' + esc((cur.favs || {})[k] || "") + '"><datalist id="dl' + k + '">' + teamList(k).map(t => '<option value="' + esc(t) + '">').join("") + '</datalist></div>';
   });
   h += '<div style="margin-top:10px"><button class="btn small" id="profSave">SAVE MY COLORS</button> <span class="small" id="profMsg"></span></div></div>';
   return h;
 }
+function noteBrainAuth(res){
+  if(res && res.why === "Verified members only." && save.member && !brainAuthFailed){ brainAuthFailed = true; render(); }
+}
 function wireProfile(){
   const b = document.getElementById("profSave"); if(!b) return;
   b.addEventListener("click", async () => {
     const msg = document.getElementById("profMsg");
     const favs = {}; FAV_LEAGUES.forEach(k => { const f = document.getElementById("fav" + k); favs[k] = f ? f.value.trim() : ""; });
-    const college = (document.getElementById("profCollege").value || "").trim();
+    const hometown = (document.getElementById("profFrom").value || "").trim();
     if(msg) msg.textContent = "Saving...";
-    const res = await parkPost({action: "setProfile", username: save.member.username, token: save.member.token, college: college, favs: favs});
-    if(res && res.ok){ save.profile = { college: college, favs: favs }; profDrafts = null; directory = null; store(); if(msg) msg.textContent = "Saved. Your colors are on your page."; fetchDirectory(); }
+    const res = await parkPost({action: "setProfile", username: save.member.username, token: save.member.token, hometown: hometown, favs: favs});
+    if(res && res.ok){ save.profile = { hometown: hometown, favs: favs }; profDrafts = null; directory = null; store(); if(msg) msg.textContent = "Saved. Your colors are on your page."; fetchDirectory(); }
+    else if(res && res.why === "Verified members only."){ brainAuthFailed = true; if(msg) msg.textContent = "The Brain does not recognize this device. Use the gold RE-VERIFY card at the top of MY PARK, then save again."; render(); }
     else if(msg) msg.textContent = (res && res.why) || "That did not save.";
   });
 }
@@ -1757,17 +1766,17 @@ async function fetchDirectory(){
 function peopleHTML(){
   if(directory === null) return '<div class="card"><div class="rankline">\ud83e\udded FIND YOUR PEOPLE</div><div class="small mut" style="margin-top:6px">Loading the directory...</div></div>';
   const groups = {};
-  directory.forEach(m => { const key = String(m.college || "").trim().toLowerCase(); if(!key) return; const g = groups[key] || (groups[key] = { name: m.college, members: [], pts: 0 }); g.members.push(m); g.pts += Number(m.pts) || 0; });
-  const myKey = save.member ? (myProfile().college || "").trim().toLowerCase() : "";
+  directory.forEach(m => { const key = String(m.hometown || "").trim().toLowerCase(); if(!key) return; const g = groups[key] || (groups[key] = { name: m.hometown, members: [], pts: 0 }); g.members.push(m); g.pts += Number(m.pts) || 0; });
+  const myKey = save.member ? (myProfile().hometown || "").trim().toLowerCase() : "";
   const keys = Object.keys(groups).sort((a, b) => ((b === myKey) - (a === myKey)) || groups[b].pts - groups[a].pts);
-  let h = '<div class="card"><div class="rankline">\ud83e\udded FIND YOUR PEOPLE</div><div class="joinline" style="margin-top:6px">The Park, matched by college, like the old Yard. Points are each crew\u2019s combined score.</div>';
-  if(!keys.length) h += '<div class="small mut" style="margin-top:8px">No colleges claimed yet. Set yours under YOUR COLORS and start your school\u2019s crew.</div>';
+  let h = '<div class="card"><div class="rankline">\ud83e\udded FIND YOUR PEOPLE</div><div class="joinline" style="margin-top:6px">The Park, matched by where you are from. Points are each crew\u2019s combined score.</div>';
+  if(!keys.length) h += '<div class="small mut" style="margin-top:8px">No hometowns claimed yet. Set yours under YOUR COLORS and start your town\u2019s crew.</div>';
   keys.forEach(key => {
     const g = groups[key];
-    h += '<div style="margin-top:12px"><b>\ud83c\udf93 ' + esc(g.name) + '</b> <span class="small mut">' + g.members.length + (g.members.length === 1 ? ' fan' : ' fans') + ' \u00b7 ' + g.pts + ' pts</span>' + (myKey && key === myKey ? ' <span style="color:var(--gold);font-weight:700">YOUR PEOPLE</span>' : '') + '</div>';
+    h += '<div style="margin-top:12px"><b>\ud83d\udccd ' + esc(g.name) + '</b> <span class="small mut">' + g.members.length + (g.members.length === 1 ? ' fan' : ' fans') + ' \u00b7 ' + g.pts + ' pts</span>' + (myKey && key === myKey ? ' <span style="color:var(--gold);font-weight:700">YOUR PEOPLE</span>' : '') + '</div>';
     h += g.members.slice().sort((a, b) => (Number(b.pts) || 0) - (Number(a.pts) || 0)).map(m => '<div style="margin-top:5px"><button class="btn ghost small" data-page="' + esc(m.username) + '">@' + esc(m.username) + '</button> <span class="small">' + (Number(m.pts) || 0) + ' pts</span>' + (m.supporter ? ' <span style="color:var(--gold)">\ud83d\udc3e</span>' : '') + '</div>').join("");
   });
-  if(!save.member) h += '<div class="small mut" style="margin-top:10px">Register your @name and set your college to join the directory.</div>';
+  if(!save.member) h += '<div class="small mut" style="margin-top:10px">Register your @name and set where you are from to join the directory.</div>';
   return h + '</div>';
 }
 function ownChalkHTML(){
@@ -2121,8 +2130,8 @@ function render(){
   const vfEl = document.getElementById("vfName"); if(vfEl) verifyName = vfEl.value;
   const rvE = document.getElementById("rvEmail"); if(rvE) rvDraft.email = rvE.value;
   const rvC = document.getElementById("rvCode"); if(rvC) rvDraft.code = rvC.value;
-  const pcEl = document.getElementById("profCollege");
-  if(pcEl){ profDrafts = { college: pcEl.value, favs: {} }; FAV_LEAGUES.forEach(k => { const f = document.getElementById("fav" + k); profDrafts.favs[k] = f ? f.value : ""; }); }
+  const pcEl = document.getElementById("profFrom");
+  if(pcEl){ profDrafts = { hometown: pcEl.value, favs: {} }; FAV_LEAGUES.forEach(k => { const f = document.getElementById("fav" + k); profDrafts.favs[k] = f ? f.value : ""; }); }
   renderNav(); setUpdated();
   if(view === "LIVE") renderLive();
   else if(view === "PAGE") renderPage();
