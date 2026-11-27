@@ -392,7 +392,7 @@ function gradeAll(events){
     if(ev.state === "post" && ev.completed){
       const p = save.picks[ev.id];
       if(p && p.sport && ev.sport && p.sport !== ev.sport) continue;
-      if(p && (p.pts === null || p.pts === undefined)) gradePick(p, ev);
+      if(p && (p.pts === null || p.pts === undefined)){ gradePick(p, ev); if(p.pts !== null && p.pts !== undefined) parkPushResult(ev.id); }
     }
   }
 }
@@ -560,6 +560,14 @@ function setUpdated(){
   const latest = new Date(Math.max.apply(null, times));
   el.textContent = "Scores and schedules update live · Last updated " + latest.toLocaleTimeString([], {hour:"numeric", minute:"2-digit", second:"2-digit"});
 }
+function inAppBrowser(){
+  const ua = navigator.userAgent || "";
+  return /FBAN|FBAV|FB_IAB|Instagram|Messenger|TikTok|musical_ly|Snapchat/i.test(ua);
+}
+function guestBrowserBanner(){
+  if(save.member || save.noBanner || !inAppBrowser()) return "";
+  return '<div class="card" style="border:2px solid var(--gold);text-align:center"><div style="font-weight:900">\u26a0\ufe0f YOU ARE IN AN APP BROWSER</div><div class="small" style="margin-top:4px">This built-in browser keeps its own separate card, so picks made here will not show in Chrome, and your Chrome card will not show here. Open Dog Park in Chrome for your main card, or join the Park and your member card follows you to every browser.</div><div style="margin-top:8px"><a class="btn" href="intent://dogparkgames.github.io/dog-park/#Intent;scheme=https;package=com.android.chrome;end">OPEN IN CHROME</a> <button class="btn ghost" data-banneroff="1">PLAY HERE ANYWAY</button></div></div>';
+}
 function renderSport(sport){
   const f = feed[sport];
   const v = document.getElementById("view");
@@ -577,7 +585,7 @@ function renderSport(sport){
   } else {
     cardsHtml = sorted.map(gameCard).join("");
   }
-  v.innerHTML = parkLineHTML(sorted.map(e => e.id)) + cardsHtml;
+  v.innerHTML = guestBrowserBanner() + parkLineHTML(sorted.map(e => e.id)) + cardsHtml;
   wirePickControls(v); wireInfo(v);
 }
 function parkMeterHTML(){
@@ -672,8 +680,8 @@ function renderLive(){
   const v = document.getElementById("view");
   let live = [];
   for(const k of Object.keys(SPORTS)){ for(const ev of (feed[k] || {}).events || []) if(ev.state === "in") live.push(ev); }
-  if(!live.length){ v.innerHTML = lockedPicksHTML() + parkMeterHTML() + '<div class="card" style="text-align:center"><b>No games are live this minute.</b><br><span class="mut">When a game tips off, kicks off or drops the puck, it shows up here with the score and clock, refreshing on its own.</span></div>'; return; }
-  v.innerHTML = '<h2 class="sec">LIVE SCORING WATCH</h2>' + lockedPicksHTML() + parkMeterHTML() + live.map(gameCard).join("");
+  if(!live.length){ v.innerHTML = guestBrowserBanner() + lockedPicksHTML() + parkMeterHTML() + '<div class="card" style="text-align:center"><b>No games are live this minute.</b><br><span class="mut">When a game tips off, kicks off or drops the puck, it shows up here with the score and clock, refreshing on its own.</span></div>'; return; }
+  v.innerHTML = guestBrowserBanner() + '<h2 class="sec">LIVE SCORING WATCH</h2>' + lockedPicksHTML() + parkMeterHTML() + live.map(gameCard).join("");
   wirePickControls(v); wireInfo(v);
 }
 let drafts = {};
@@ -793,6 +801,9 @@ function wirePickControls(root){
     const d = drafts[ev.id] || (drafts[ev.id] = {side: null, margin: ev.rounds + 1, touched: false});
     d.margin = parseInt(btn.dataset.r, 10); d.touched = true;
     syncPickUI(ev);
+  }));
+  root.querySelectorAll("[data-banneroff]").forEach(btn => btn.addEventListener("click", () => {
+    save.noBanner = true; store(); render();
   }));
   root.querySelectorAll("[data-edit]").forEach(btn => btn.addEventListener("click", () => {
     const ev = findEvent(btn.dataset.edit); if(!ev) return;
@@ -1168,8 +1179,53 @@ function parkPost(payload){
     .then(r => r.json()).catch(() => ({ok:false, why:"The Park did not answer. Try again in a bit."}));
 }
 function parkPostPick(ev){
-  const p = save.picks[ev.id]; if(!p) return;
-  if(save.member) parkPost({username: save.member.username, token: save.member.token, gameId: ev.id, sport: ev.sport, side: p.side, margin: p.margin, gameStart: ev.date});
+  if(save.member) parkPostPickObj(ev.id);
+}
+function parkPostPickObj(gameId){
+  const p = save.picks[gameId]; if(!p || !save.member) return;
+  parkPost({username: save.member.username, token: save.member.token, gameId: gameId, sport: p.sport, side: p.side, margin: p.margin, gameStart: p.date, awayAbbr: p.awayAbbr || "", homeAbbr: p.homeAbbr || "", awayName: p.awayName || "", homeName: p.homeName || ""});
+}
+function parkPushResult(gameId){
+  const p = save.picks[gameId]; if(!p || !save.member || p.pts === null || p.pts === undefined) return;
+  parkPost({action: "saveResult", username: save.member.username, token: save.member.token, gameId: gameId, sport: p.sport, side: p.side, margin: p.margin, gameStart: p.date, pts: p.pts, dh: !!p.dh, actualMargin: p.actualMargin, winnerSide: p.winnerSide || "", finalScore: p.finalScore || "", awayAbbr: p.awayAbbr || "", homeAbbr: p.homeAbbr || "", awayName: p.awayName || "", homeName: p.homeName || ""});
+}
+let syncPulled = false;
+async function parkSyncCard(){
+  if(!save.member) return;
+  const res = await parkPost({action: "getMyCard", username: save.member.username, token: save.member.token});
+  if(!res || !res.ok || !Array.isArray(res.picks)) return;
+  let changed = false;
+  const serverIds = {};
+  for(const sp of res.picks){
+    serverIds[sp.gameId] = sp;
+    const lp = save.picks[sp.gameId];
+    if(!lp){
+      const ev = findEvent(sp.gameId);
+      const np = { sport: sp.sport, side: sp.side, margin: sp.margin,
+        awayAbbr: sp.awayAbbr || (ev ? ev.away.abbr : ""), homeAbbr: sp.homeAbbr || (ev ? ev.home.abbr : ""),
+        awayName: sp.awayName || (ev ? ev.away.name : ""), homeName: sp.homeName || (ev ? ev.home.name : ""),
+        date: sp.gameStart, week: sp.gameStart ? weekKey(new Date(sp.gameStart)) : "",
+        pts: (sp.pts === undefined ? null : sp.pts), dh: !!sp.dh };
+      if(sp.pts !== null && sp.pts !== undefined){ np.actualMargin = sp.actualMargin; np.winnerSide = sp.winnerSide || null; np.finalScore = sp.finalScore || ""; np.win = sp.winnerSide ? (sp.side === sp.winnerSide) : false; }
+      save.picks[sp.gameId] = np;
+      changed = true;
+    } else {
+      if((lp.pts === null || lp.pts === undefined) && sp.pts !== null && sp.pts !== undefined){
+        lp.pts = sp.pts; lp.dh = !!sp.dh; lp.actualMargin = sp.actualMargin; lp.winnerSide = sp.winnerSide || null; lp.finalScore = sp.finalScore || "";
+        lp.win = sp.winnerSide ? (lp.side === sp.winnerSide) : false;
+        changed = true;
+      }
+      if(!sp.awayAbbr && lp.awayAbbr) parkPostPickObj(sp.gameId);
+    }
+  }
+  for(const id of Object.keys(save.picks)){
+    if(serverIds[id]) continue;
+    const lp = save.picks[id];
+    if(lp.pts !== null && lp.pts !== undefined) parkPushResult(id);
+    else if(lp.date && new Date(lp.date) > new Date()) parkPostPickObj(id);
+  }
+  if(res.supporter && !save.supporter){ save.supporter = true; changed = true; }
+  if(changed){ store(); render(); }
 }
 function parkRemovePick(ev){
   if(save.member) parkPost({action: "removePick", username: save.member.username, token: save.member.token, gameId: ev.id});
@@ -1245,6 +1301,7 @@ function wireTransferCard(){
       if(!Array.isArray(save.board)) save.board = [];
       if(!save.lineSnap) save.lineSnap = keepSnap || {};
       if(save.supporter === undefined) save.supporter = false;
+      syncPulled = false;
       store(); refresh(false);
       const m2 = document.getElementById("transferMsg"); if(m2) m2.textContent = "Your card moved in. Welcome back.";
     }catch(e){ transferArm = false; msg.textContent = "That code did not read. Transfer codes start with DPMOVE- : check the paste and try again."; }
@@ -1257,7 +1314,7 @@ function wireMemberCard(){
   if(pb) pb.addEventListener("click", () => {
     const code = (document.getElementById("passCode").value || "").trim().toUpperCase();
     const msg = document.getElementById("passMsg");
-    if(validParkCode(code)){ save.supporter = true; store(); refresh(false); }
+    if(validParkCode(code)){ save.supporter = true; if(save.member) parkPost({action: "setSupporter", username: save.member.username, token: save.member.token}); store(); refresh(false); }
     else if(msg) msg.textContent = "That code does not check out. Codes look like PARK-XXXXXX and arrive by email after checkout.";
   });
   if(save.member || !PARK_API) return;
@@ -1297,6 +1354,7 @@ function wireMemberCard(){
         save.joinDraft = null;
         save.welcomed = true; store();
         for(const id of Object.keys(save.picks)){ const p = save.picks[id]; if(p.pts === null || p.pts === undefined){ const ev = findEvent(id); if(ev && ev.state === "pre") parkPostPick(ev); } }
+        parkSyncCard();
         refresh(false);
       } else msg2.textContent = res.why || "That code did not check out.";
     });
@@ -1490,6 +1548,7 @@ async function refresh(rerender){
   for(const id of Object.keys(save.lineSnap)) if(!boardIds.has(id)){ delete save.lineSnap[id]; snapChanged = true; }
   if(snapChanged) store();
   if(ids.length) await fetchPark(ids);
+  if(save.member && !syncPulled){ syncPulled = true; parkSyncCard(); }
   render();
 }
 function scheduleAuto(){
