@@ -693,6 +693,10 @@ function recordsHTML(){
   let rankLine;
   if(next){ const pct = Math.min(100, Math.round(100 * pts / next[0])); rankLine = '<div style="margin-top:8px"><div class="small">Next rank: <b>' + next[1] + '</b> at ' + next[0] + ' pts \u00b7 ' + (next[0] - pts) + ' to go</div><div style="height:10px;background:var(--panel2);border-radius:6px;margin-top:4px;overflow:hidden"><div style="height:100%;width:' + pct + '%;background:var(--gold)"></div></div></div>'; }
   else rankLine = '<div class="small" style="margin-top:8px">Top rank reached: <b>Yardstick Master</b>. Nothing above you.</div>';
+  const byWk = {};
+  graded.forEach(p => { if(p.week) byWk[p.week] = (byWk[p.week] || 0) + (p.pts || 0); });
+  const bestWeekPts = Math.max.apply(null, [0].concat(Object.values(byWk)));
+  const dhRatePct = graded.length ? Math.round(1000 * graded.filter(p => p.dh).length / graded.length) / 10 : 0;
   let h = '<div class="card"><div class="rankline">\ud83c\udfc5 YOUR RECORDS</div>';
   h += '<div class="statgrid" style="margin-top:8px">' +
     stat("Current streak", (cur > 0 ? "W" + cur : cur < 0 ? "L" + (-cur) : "\u00b7")) +
@@ -703,22 +707,32 @@ function recordsHTML(){
   if(vsPark) h += '<div class="joinline">You vs the Park: <b>' + vsPark.you + " closer \u00b7 " + vsPark.them + " Park closer" + (vsPark.even ? " \u00b7 " + vsPark.even + " even" : "") + '</b> over ' + vsPark.n + ' games \u00b7 your average miss ' + vsPark.yourAvg + ", the Park's " + vsPark.theirAvg + '</div>';
   if(vsLine) h += '<div class="joinline">You vs the Line: <b>' + vsLine.you + " closer \u00b7 " + vsLine.them + " line closer" + (vsLine.even ? " \u00b7 " + vsLine.even + " even" : "") + '</b> over ' + vsLine.n + ' games \u00b7 your average miss ' + vsLine.yourAvg + ", the line's " + vsLine.theirAvg + '</div>';
   if(weekPicks.length) h += '<div class="joinline">\ud83d\udcc5 This week: <b>' + weekPts + ' pts</b> from ' + weekPicks.length + ' graded picks' + (weekDh ? ' \u00b7 ' + weekDh + ' Direct Hit' + (weekDh > 1 ? "s" : "") : '') + '</div>';
+  if(bestWeekPts) h += '<div class="joinline">\ud83d\udcc8 Best week: <b>' + bestWeekPts + ' pts</b></div>';
+  if(graded.length >= 5) h += '<div class="joinline">\ud83c\udfaf Direct Hit rate: <b>' + dhRatePct + '%</b> of ' + graded.length + ' graded picks called the exact margin</div>';
   h += rankLine + '</div>';
   return h;
 }
 function trendsHTML(){
   const ids = Object.keys(parkData); if(!ids.length) return "";
-  let totalPicks = 0, mostGame = null, mostN = 0, boldest = null, boldDiff = -1, leanGame = null, leanDiff = -1;
+  let totalPicks = 0, mostGame = null, mostN = 0, boldest = null, boldDiff = -1, leanGame = null, leanDiff = -1, allIn = null, allInDiff = -1, levelGame = null, levelDiff = 1e9, barkGame = null;
   const perSport = {};
+  const teamPicks = {};
   for(const id of ids){
     const pg = parkData[id]; const ev = findEvent(id);
     totalPicks += pg.n;
     if(ev) perSport[ev.sport] = (perSport[ev.sport] || 0) + pg.n;
+    if(ev){
+      if(pg.awayN) teamPicks[ev.away.abbr] = (teamPicks[ev.away.abbr] || 0) + pg.awayN;
+      if(pg.homeN) teamPicks[ev.home.abbr] = (teamPicks[ev.home.abbr] || 0) + pg.homeN;
+      if(pg.n >= 1 && pg.homePct !== undefined && pg.homePct !== null){ const ad = Math.abs(pg.homePct - 50); if(ad > allInDiff){ allInDiff = ad; allIn = { ev: ev, pct: pg.homePct >= 50 ? pg.homePct : 100 - pg.homePct, side: pg.homePct >= 50 ? "home" : "away" }; } }
+    }
     if(pg.n > mostN){ mostN = pg.n; mostGame = ev; }
     if(ev && ev.sport !== "UFC" && pg.ysSigned !== undefined && pg.ysSigned !== null){
       const line = ev.yardstick ? (ev.yardstick.side === "home" ? ev.yardstick.margin : -ev.yardstick.margin) : 0;
       const d = Math.abs(pg.ysSigned - line);
       if(pg.n >= 2 && d > leanDiff){ leanDiff = d; leanGame = { ev: ev, ys: pg.ysSigned, line: line }; }
+      if(pg.n >= 2 && d < levelDiff){ levelDiff = d; levelGame = { ev: ev, ys: pg.ysSigned, line: line }; }
+      if(pg.n >= 2 && !barkGame && ev.yardstick && pg.favSide && pg.favSide !== ev.yardstick.side){ barkGame = { ev: ev, ys: pg.ysSigned }; }
       if(Math.abs(pg.ysSigned) > boldDiff){ boldDiff = Math.abs(pg.ysSigned); boldest = { ev: ev, ys: pg.ysSigned }; }
     }
   }
@@ -731,6 +745,12 @@ function trendsHTML(){
   if(leanGame) h += '<div class="joinline">Park vs the Line: the Park leans <b>' + favLabel(leanGame.ev, leanGame.ys) + '</b> on ' + esc(leanGame.ev.away.abbr) + " at " + esc(leanGame.ev.home.abbr) + ' where the line says ' + favLabel(leanGame.ev, leanGame.line) + '</div>';
   if(boldest) h += '<div class="joinline">Boldest Park call: <b>' + favLabel(boldest.ev, boldest.ys) + '</b> (' + esc(boldest.ev.away.abbr) + " at " + esc(boldest.ev.home.abbr) + ')</div>';
   if(hotSport) h += '<div class="joinline">Hottest sport in the Park: <b>' + esc(hotSport) + '</b> \u00b7 ' + hotN + ' picks</div>';
+  let favTeam = "", favTeamN = 0;
+  for(const ab of Object.keys(teamPicks)){ if(teamPicks[ab] > favTeamN){ favTeamN = teamPicks[ab]; favTeam = ab; } }
+  if(favTeam) h += '<div class="joinline">Park\u2019s favorite team: <b>' + esc(favTeam) + '</b> \u00b7 ' + favTeamN + ' picks across the board</div>';
+  if(allIn) h += '<div class="joinline">Park is all-in: <b>' + allIn.pct + '%</b> on ' + esc(allIn.side === "home" ? allIn.ev.home.abbr : allIn.ev.away.abbr) + ' (' + esc(allIn.ev.away.abbr) + " at " + esc(allIn.ev.home.abbr) + ')</div>';
+  if(levelGame && levelDiff <= 0.24) h += '<div class="joinline">Dead level: the Park and the line both say <b>' + favLabel(levelGame.ev, levelGame.ys) + '</b> on ' + esc(levelGame.ev.away.abbr) + " at " + esc(levelGame.ev.home.abbr) + '</div>';
+  if(barkGame) h += '<div class="joinline">The Park barks for the dog: <b>' + favLabel(barkGame.ev, barkGame.ys) + '</b> on ' + esc(barkGame.ev.away.abbr) + " at " + esc(barkGame.ev.home.abbr) + ' where the line favors the other side</div>';
   return h + '</div></div>';
 }
 function isParkAdmin(){ return !!(save.member && String(save.member.username).toLowerCase() === "dogpark"); }
@@ -1157,16 +1177,56 @@ function trophyCase(){
   const graded = Object.values(save.picks).filter(p => p.pts !== null && p.pts !== undefined).sort((a, b) => new Date(a.date) - new Date(b.date));
   let streak = 0, best = 0;
   for(const p of graded){ if(p.pts > 0){ streak++; if(streak > best) best = streak; } else streak = 0; }
+  const totalPicks = Object.keys(save.picks).length;
+  let hbCount = 0;
+  for(const p of graded){
+    if(!p.win || p.dh) continue;
+    const err = Math.abs(p.margin - p.actualMargin);
+    if(p.sport === "UFC"){ if(err === 1) hbCount++; }
+    else if(err >= 1 && err <= 3) hbCount++;
+  }
+  function vsWins(key){
+    let you = 0, them = 0;
+    for(const p of graded){
+      if(p.sport === "UFC") continue;
+      const theirs = p[key]; if(theirs === null || theirs === undefined || !p.winnerSide) continue;
+      const actual = p.winnerSide === "home" ? p.actualMargin : -p.actualMargin;
+      const mine = p.side === "home" ? p.margin : -p.margin;
+      if(Math.abs(mine - actual) < Math.abs(theirs - actual)) you++;
+      else if(Math.abs(theirs - actual) < Math.abs(mine - actual)) them++;
+    }
+    return { you: you, them: them, n: you + them };
+  }
+  const vPark = vsWins("parkCall"), vLine = vsWins("lineCall");
+  const byDay = {};
+  for(const p of graded){ const d = new Date(p.date); if(isNaN(d)) continue; const k = d.getFullYear() + "-" + d.getMonth() + "-" + d.getDate(); (byDay[k] = byDay[k] || []).push(p); }
+  const perfectDay = Object.values(byDay).some(list => list.length >= 3 && list.every(p => p.pts > 0));
+  const dhRate = graded.length ? t.dh / graded.length : 0;
   return [
     {emo:"🌳", name:"In the Park", desc:"Score your first points", got: t.points > 0},
     {emo:"💎", name:"Direct Hit", desc:"Call an exact margin", got: t.dh >= 1},
     {emo:"🔥", name:"On Fire", desc:"Score in 5 straight graded picks", got: best >= 5},
+    {emo:"☄️", name:"Inferno", desc:"Score in 10 straight graded picks", got: best >= 10},
     {emo:"💯", name:"Century Week", desc:"100+ points in one week", got: bestWeek >= 100},
+    {emo:"🚀", name:"Big Week", desc:"200+ points in one week", got: bestWeek >= 200},
+    {emo:"🌋", name:"Huge Week", desc:"400+ points in one week", got: bestWeek >= 400},
+    {emo:"🦖", name:"Monster Week", desc:"750+ points in one week", got: bestWeek >= 750},
     {emo:"🌎", name:"Whole Park", desc:"Score in every sport in the Park", got: sportsPlayed >= Object.keys(SPORTS).length},
+    {emo:"🎒", name:"Fifty Deep", desc:"Make 50 picks in the Park", got: totalPicks >= 50},
+    {emo:"🗿", name:"Park Fixture", desc:"Make 150 picks in the Park", got: totalPicks >= 150},
+    {emo:"☀️", name:"Perfect Day", desc:"3+ graded picks in a day and every one scores", got: perfectDay},
     {emo:"🎯", name:"Sharpshooter", desc:"Land 5 Direct Hits", got: t.dh >= 5},
+    {emo:"🏹", name:"Deadeye", desc:"Land 15 Direct Hits", got: t.dh >= 15},
+    {emo:"🔮", name:"Called It", desc:"Land 30 Direct Hits", got: t.dh >= 30},
     {emo:"⭐", name:"Regular", desc:"Reach 250 total points", got: t.points >= 250},
+    {emo:"⚡", name:"Sharp", desc:"Reach 750 total points", got: t.points >= 750},
+    {emo:"🥊", name:"Contender", desc:"Reach 1,500 total points", got: t.points >= 1500},
     {emo:"👑", name:"Top Dog", desc:"Reach 3,000 total points", got: t.points >= 3000},
     {emo:"🏆", name:"Yardstick Master", desc:"Reach 6,000 total points", got: t.points >= 6000},
+    {emo:"🐕", name:"Beat the Park", desc:"Out-call the Park's average on 10+ graded games", got: vPark.n >= 10 && vPark.you > vPark.them},
+    {emo:"📏", name:"Beat the Line", desc:"Out-call the posted line on 10+ graded games", got: vLine.n >= 10 && vLine.you > vLine.them},
+    {emo:"👁️", name:"True Eye", desc:"Direct Hit rate of 8%+ across 40+ graded picks", got: graded.length >= 40 && dhRate >= 0.08},
+    {emo:"💔", name:"So Close", desc:"5 heartbreakers: right winner, missed the Hit by a whisker", got: hbCount >= 5},
     {emo:"🐾", name:"Park Supporter", desc:"Backed the Park with a Supporter Pass", got: !!save.supporter}
   ];
 }
