@@ -492,6 +492,12 @@ function gameCard(ev){
       ? (pick ? {side: pick.side, margin: pick.margin, touched: false, frozen: pick.margin} : {side: null, margin: ev.rounds + 1, touched: false})
       : (pick ? {side: pick.side, dev: devFromMargin(ev, pick), touched: false, frozen: pick.margin} : {side: null, dev: 0, touched: false});
     const d = drafts[ev.id];
+    if(pick && !editOpen[ev.id] && !confirmVisible(ev, d)){
+      const pTxt = ev.sport === "UFC"
+        ? esc(pick.side === "home" ? ev.home.name : ev.away.name) + " · " + (pick.margin > ev.rounds ? "goes the distance" : "ends in round " + pick.margin)
+        : esc(pick.side === "home" ? ev.home.abbr : ev.away.abbr) + " to win by " + pick.margin;
+      body = '<div class="result">🔒 <b>YOUR PICK IS IN:</b> ' + pTxt + '<div style="margin-top:6px"><button class="btn ghost small" data-edit="' + ev.id + '">CHANGE MY PICK</button></div></div>';
+    } else {
     body = '<div class="pickbox">' +
       '<div class="pickbtns">' +
         '<button data-pick="' + ev.id + '" data-side="away" class="' + (d.side === "away" ? "on" : "") + '">' + esc(ev.away.abbr) + ' wins</button>' +
@@ -509,6 +515,7 @@ function gameCard(ev){
       '<div class="pickrow"><button data-clear="' + ev.id + '" id="cl-' + ev.id + '">Clear my choices</button>' +
       (pick ? '<button data-remove="' + ev.id + '" id="rm-' + ev.id + '" class="danger">Remove my pick</button>' : '') + '</div>' +
     '</div>';
+    }
   } else if(fin && pick && pick.pts !== null && pick.pts !== undefined){
     if(ev.sport === "UFC"){
       body = '<div class="result">You called <b>' + esc(pick.side === "home" ? ev.home.name : ev.away.name) + '</b> · ' + (pick.margin > ev.rounds ? "goes the distance" : "ends in round " + pick.margin) +
@@ -670,6 +677,7 @@ function renderLive(){
   wirePickControls(v); wireInfo(v);
 }
 let drafts = {};
+let editOpen = {};
 function stickSigned(ev){
   const pg = parkData[ev.id];
   if(pg && pg.ysReady) return pg.ysSigned;
@@ -786,12 +794,18 @@ function wirePickControls(root){
     d.margin = parseInt(btn.dataset.r, 10); d.touched = true;
     syncPickUI(ev);
   }));
+  root.querySelectorAll("[data-edit]").forEach(btn => btn.addEventListener("click", () => {
+    const ev = findEvent(btn.dataset.edit); if(!ev) return;
+    editOpen[ev.id] = true;
+    refresh(false);
+  }));
   root.querySelectorAll("[data-confirm]").forEach(btn => btn.addEventListener("click", () => {
     const ev = findEvent(btn.dataset.confirm); if(!ev) return;
     const d = drafts[ev.id]; if(!d || !d.side) return;
     const svp = save.picks[ev.id];
-    if(svp && !d.touched && d.side === svp.side && draftMargin(ev, d) === svp.margin){ refresh(false); return; }
+    if(svp && !d.touched && d.side === svp.side && draftMargin(ev, d) === svp.margin){ delete editOpen[ev.id]; refresh(false); return; }
     savePick(ev, d.side, draftMargin(ev, d));
+    delete editOpen[ev.id];
     removeArm[ev.id] = false;
     refresh(false);
   }));
@@ -802,6 +816,7 @@ function wirePickControls(root){
       ? (saved ? {side: saved.side, margin: saved.margin, touched: false, frozen: saved.margin} : {side: null, margin: ev.rounds + 1, touched: false})
       : (saved ? {side: saved.side, dev: devFromMargin(ev, saved), touched: false, frozen: saved.margin} : {side: null, dev: 0, touched: false});
     removeArm[ev.id] = false;
+    if(saved){ delete editOpen[ev.id]; refresh(false); return; }
     syncPickUI(ev);
   }));
   root.querySelectorAll("[data-remove]").forEach(btn => btn.addEventListener("click", () => {
@@ -809,7 +824,7 @@ function wirePickControls(root){
     if(!removeArm[ev.id]){ removeArm[ev.id] = true; syncPickUI(ev); return; }
     delete save.picks[ev.id]; store();
     parkRemovePick(ev);
-    delete drafts[ev.id]; removeArm[ev.id] = false;
+    delete drafts[ev.id]; delete editOpen[ev.id]; removeArm[ev.id] = false;
     refresh(false);
   }));
 }
