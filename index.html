@@ -533,7 +533,7 @@ function gameCard(ev){
       (ev.sport === "NHL" ? '<div class="small mut" style="text-align:center;margin-top:4px">🏒 Calls are in goals: most NHL games end 1 or 2 goals apart, and an overtime or shootout win is always by 1.</div>' : '') +
       '<div class="pickread" id="pr-' + ev.id + '">' + pickReadHTML(ev, d) + '</div>' +
       '<div style="text-align:center"><button class="btn" data-confirm="' + ev.id + '" id="cf-' + ev.id + '" style="display:' + (confirmVisible(ev, d) ? 'inline-block' : 'none') + '">' + (pick ? 'UPDATE MY PICK' : 'LOCK IT IN') + '</button></div>' +
-      '<div class="pickrow"><button data-clear="' + ev.id + '" id="cl-' + ev.id + '">Clear my choices</button>' +
+      '<div class="pickrow">' + (pick ? '<button data-keep="' + ev.id + '">\u2713 KEEP MY PICK AS IS</button>' : '') + '<button data-clear="' + ev.id + '" id="cl-' + ev.id + '">Clear my choices</button>' +
       (pick ? '<button data-remove="' + ev.id + '" id="rm-' + ev.id + '" class="danger">Remove my pick</button>' : '') + '</div>' +
     '</div>';
     }
@@ -773,7 +773,7 @@ function wireTalkDeletes(root){
       if(scope === "callouts"){ talkCache["callouts"] = null; await fetchTalkFeed("callouts"); render(); }
       else if(scope && document.getElementById("talk-" + scope)){ talkCache[scope] = null; loadTalk(scope); }
       else if(scope){ talkCache[scope] = null; await fetchTalkFeed(scope); render(); }
-    } else { btn.textContent = "✕ DELETE"; alert((res && res.why) || "That did not delete."); }
+    } else { btn.textContent = "✕ DELETE"; if(res && res.why === "Verified members only." && save.member){ brainAuthFailed = true; alert("The Park Brain does not recognize this device’s sign-in. Use the RE-VERIFY THIS DEVICE card at the top of MY PARK to email yourself a fresh code, then deletes will work."); render(); } else alert((res && res.why) || "That did not delete."); }
   }));
 }
 function renderNav(){
@@ -1070,6 +1070,16 @@ function wirePickControls(root){
     if(saved){ delete editOpen[ev.id]; refresh(false); return; }
     syncPickUI(ev);
   }));
+  root.querySelectorAll("[data-keep]").forEach(btn => btn.addEventListener("click", () => {
+    const ev = findEvent(btn.dataset.keep); if(!ev) return;
+    const saved = save.picks[ev.id]; if(!saved) return;
+    drafts[ev.id] = ev.sport === "UFC"
+      ? {side: saved.side, margin: saved.margin, touched: false, frozen: saved.margin}
+      : {side: saved.side, dev: devFromMargin(ev, saved), touched: false, frozen: saved.margin};
+    removeArm[ev.id] = false;
+    delete editOpen[ev.id];
+    refresh(false);
+  }));
   root.querySelectorAll("[data-remove]").forEach(btn => btn.addEventListener("click", () => {
     const ev = findEvent(btn.dataset.remove); if(!ev) return;
     if(!removeArm[ev.id]){ removeArm[ev.id] = true; syncPickUI(ev); return; }
@@ -1285,14 +1295,32 @@ function myGraphsHTML(){
     const mx = Math.max.apply(null, all.map(x => Math.max(x.p.margin, x.p.actualMargin)).concat([10]));
     const dhN = all.filter(x => x.p.dh).length;
     const avgPts = Math.round(10 * all.reduce((s, x) => s + x.p.pts, 0) / all.length) / 10;
-    h += '<div class="small" style="font-weight:800;letter-spacing:.05em;margin-top:6px">MY CALL vs THE RESULT</div><div class="small mut"><span style="color:var(--green)">\u275a</span> my call <span style="color:var(--gold)">\u275a</span> the result</div>';
+    h += '<div class="small" style="font-weight:800;letter-spacing:.05em;margin-top:6px">MY CALL vs THE RESULT</div><div class="small mut"><span style="color:var(--green)">❚</span> my call <span style="color:var(--gold)">❚</span> the result</div>';
     h += '<div class="small mut">Your whole archive: ' + all.length + ' graded pick' + (all.length === 1 ? "" : "s") + ' · ' + dhN + ' Direct Hit' + (dhN === 1 ? "" : "s") + ' · ' + avgPts + ' pts per pick on average. A minus result means your team lost by that many.</div>';
-    if(all.length > 30) h += '<div class="small mut">Bars show your last 30 graded picks; the summary above covers the whole archive.</div>';
-    for(const x of all.slice(0, 30)){
+    if(all.length > 16) h += '<div class="small mut">Bars show your last 16 graded picks; the summary above covers the whole archive.</div>';
+    const items = all.slice(0, 16).map(x => {
       const res = x.p.sport === "UFC" ? x.p.actualMargin : (x.p.win ? x.p.actualMargin : -x.p.actualMargin);
       const lab = x.p.sport === "UFC" ? (x.p.awayName + " vs " + x.p.homeName) : (x.p.awayAbbr + " at " + x.p.homeAbbr);
-      h += '<div class="gbar"><span class="glab">' + esc(lab) + '</span><span class="dual"><span class="dfill" style="width:' + Math.round(100 * x.p.margin / mx) + '%;background:var(--green)"></span><span class="dfill" style="width:' + Math.round(100 * x.p.actualMargin / mx) + '%;background:var(--gold)"></span></span><span class="gval">' + x.p.margin + ' vs ' + res + ' · ' + x.p.pts + ' pts' + (x.p.dh ? ' 🏆' : '') + '</span></div>';
+      return {lab: lab, call: x.p.margin, res: res, pts: x.p.pts, dh: !!x.p.dh};
+    });
+    const W = 340, plotX = 4, plotW = 268, rowH = 34, top = 16;
+    const H = top + items.length * rowH + 4;
+    let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;margin-top:6px" role="img" aria-label="My call versus the result">';
+    for(const t of [0, 0.5, 1]){
+      const gx = plotX + plotW * t;
+      s += '<line x1="' + gx + '" y1="' + (top - 3) + '" x2="' + gx + '" y2="' + (H - 4) + '" stroke="#313947" stroke-width="1"/>';
+      s += '<text x="' + gx + '" y="10" font-size="8.5" fill="#9aa6b5" text-anchor="middle">' + Math.round(mx * t) + '</text>';
     }
+    items.forEach((it, i) => {
+      const y = top + i * rowH;
+      s += '<text x="' + plotX + '" y="' + (y + 9) + '" font-size="10.5" font-weight="700" fill="#f2f4f6">' + esc(it.lab) + '</text>';
+      s += '<text x="' + (W - 4) + '" y="' + (y + 9) + '" font-size="9.5" fill="#9aa6b5" text-anchor="end">' + it.call + ' vs ' + it.res + ' · ' + it.pts + ' pts' + (it.dh ? ' 🏆' : '') + '</text>';
+      const cw = Math.max(1, Math.round(plotW * it.call / mx)), rw = Math.max(1, Math.round(plotW * Math.abs(it.res) / mx));
+      s += '<rect x="' + plotX + '" y="' + (y + 13) + '" width="' + cw + '" height="7" rx="3.5" fill="#2fbf71"/>';
+      s += '<rect x="' + plotX + '" y="' + (y + 22) + '" width="' + rw + '" height="7" rx="3.5" fill="#f2c14e"/>';
+    });
+    s += '</svg>';
+    h += s;
   }
   const leans = [];
   for(const x of graded){
@@ -1303,24 +1331,45 @@ function myGraphsHTML(){
     if(leans.length >= 12) break;
   }
   if(leans.length){
-    h += '<div class="small" style="font-weight:800;letter-spacing:.05em;margin-top:8px">MY LEAN vs THE LINE</div><div class="small mut">under the line \u2190 \u00b7 \u2192 over the line \u00b7 read from the line saved when each pick graded, so finished games stay on the graph</div>';
-    for(const L of leans){
-      const w = Math.min(50, Math.abs(L.eff) / 10 * 50);
-      const left = L.eff >= 0 ? 50 : 50 - w;
-      const col = L.eff >= 0 ? 'var(--green)' : 'var(--gold)';
-      h += '<div class="gbar"><span class="glab">' + esc(L.label) + '</span><span class="leanbar"><span class="lzero"></span><span class="lfill" style="left:' + left + '%;width:' + w + '%;background:' + col + '"></span></span><span class="gval">' + (L.eff > 0 ? '+' : '') + L.eff + '</span></div>';
+    h += '<div class="small" style="font-weight:800;letter-spacing:.05em;margin-top:10px">MY LEAN vs THE LINE</div><div class="small mut">under the line ← · → over the line · read from the line saved when each pick graded, so finished games stay on the graph</div>';
+    const W = 340, cx = 170, half = 128, rowH = 27, top = 16;
+    const H = top + leans.length * rowH + 4;
+    let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;margin-top:6px" role="img" aria-label="My lean versus the line">';
+    for(const t of [-10, 0, 10]){
+      const gx = cx + half * t / 10;
+      s += '<line x1="' + gx + '" y1="' + (top - 3) + '" x2="' + gx + '" y2="' + (H - 4) + '" stroke="' + (t === 0 ? '#9aa6b5' : '#313947') + '" stroke-width="1"/>';
+      s += '<text x="' + gx + '" y="10" font-size="8.5" fill="#9aa6b5" text-anchor="middle">' + (t > 0 ? '+' + t : '' + t) + '</text>';
     }
+    leans.forEach((L, i) => {
+      const y = top + i * rowH;
+      const w = Math.round(half * Math.min(10, Math.abs(L.eff)) / 10);
+      const col = L.eff >= 0 ? '#2fbf71' : '#f2c14e';
+      s += '<text x="4" y="' + (y + 9) + '" font-size="10.5" font-weight="700" fill="#f2f4f6">' + esc(L.label) + '</text>';
+      if(w > 0) s += '<rect x="' + (L.eff >= 0 ? cx : cx - w) + '" y="' + (y + 13) + '" width="' + w + '" height="8" rx="4" fill="' + col + '"/>';
+      s += '<text x="' + (L.eff >= 0 ? cx + w + 5 : cx - w - 5) + '" y="' + (y + 20) + '" font-size="10" font-weight="700" fill="' + col + '" text-anchor="' + (L.eff >= 0 ? 'start' : 'end') + '">' + (L.eff > 0 ? '+' : '') + L.eff + '</text>';
+    });
+    s += '</svg>';
+    h += s;
   }
   const byWeek = {};
   for(const x of graded) byWeek[x.p.week] = (byWeek[x.p.week] || 0) + x.p.pts;
   const weeks = Object.keys(byWeek).sort();
   if(weeks.length){
     const mxw = Math.max.apply(null, weeks.map(w => byWeek[w]).concat([1]));
-    h += '<div class="small" style="font-weight:800;letter-spacing:.05em;margin-top:8px">MY POINTS BY WEEK</div>';
-    for(const w of weeks){
+    h += '<div class="small" style="font-weight:800;letter-spacing:.05em;margin-top:10px">MY POINTS BY WEEK</div>';
+    const W = 340, plotX = 4, plotW = 332, rowH = 27, top = 6;
+    const H = top + weeks.length * rowH + 4;
+    let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;margin-top:6px" role="img" aria-label="My points by week">';
+    weeks.forEach((w, i) => {
+      const y = top + i * rowH;
       const lab = w.indexOf("-W") !== -1 ? "Week " + w.split("-W")[1] : w;
-      h += '<div class="gbar"><span class="glab">' + esc(lab) + '</span><span class="gtrack"><span class="gfill" style="width:' + Math.round(100 * byWeek[w] / mxw) + '%"></span></span><span class="gval">' + byWeek[w] + '</span></div>';
-    }
+      const bw = Math.max(1, Math.round(plotW * byWeek[w] / mxw));
+      s += '<text x="' + plotX + '" y="' + (y + 9) + '" font-size="10.5" font-weight="700" fill="#f2f4f6">' + esc(lab) + '</text>';
+      s += '<text x="' + (W - 4) + '" y="' + (y + 9) + '" font-size="10" font-weight="700" fill="#2fbf71" text-anchor="end">' + byWeek[w] + ' pts</text>';
+      s += '<rect x="' + plotX + '" y="' + (y + 13) + '" width="' + bw + '" height="8" rx="4" fill="#2fbf71"/>';
+    });
+    s += '</svg>';
+    h += s;
   }
   if(!all.length && !leans.length && !weeks.length) h += '<div class="small mut" style="margin-top:6px">Your graphs fill in as your picks grade: your call against the result, your lean against the line, and your points week by week.</div>';
   h += '</div>';
@@ -1382,6 +1431,7 @@ function renderYard(){
     'Every point you are off inside ten costs 10: off by 1 scores 90, off by 2 scores 80, and so on. Miss the winner, or land outside ten, and the game scores 0. No negatives, ever. ' +
     'The Yardstick is the posted line for the game, the market\'s collective call on the margin, shown so you can measure your call against the crowd\'s number.<br><b>UFC fights:</b> pick the winner and the round it ends, or goes the distance. Exact round is a Direct Hit for 100, one round off scores 50, right winner with the round missed scores 25.</div></div>';
   h += memberCardHTML();
+  h += safeHTML(reverifyCardHTML);
   h += supporterCardHTML();
   h += transferCardHTML();
   h += safeHTML(reportCardHTML);
@@ -1393,6 +1443,7 @@ function renderYard(){
   wireTalkDeletes(document);
   wireReport();
   wireVerify();
+  wireReverify();
   wirePageButtons();
   wireProfile();
   ["joinUser", "joinEmail", "joinCode"].forEach(id => { const el = document.getElementById(id); if(el && keep[id]) el.value = keep[id]; });
@@ -1485,10 +1536,14 @@ function parkPushResult(gameId){
   parkPost({action: "saveResult", username: save.member.username, token: save.member.token, gameId: gameId, sport: p.sport, side: p.side, margin: p.margin, gameStart: p.date, pts: p.pts, dh: !!p.dh, actualMargin: p.actualMargin, winnerSide: p.winnerSide || "", finalScore: p.finalScore || "", awayAbbr: p.awayAbbr || "", homeAbbr: p.homeAbbr || "", awayName: p.awayName || "", homeName: p.homeName || "", parkCall: p.parkCall, lineCall: p.lineCall});
 }
 let syncPulled = false;
+let brainAuthFailed = false;
+let rvDraft = {email: "", code: ""};
 async function parkSyncCard(){
   if(!save.member) return;
   const res = await parkPost({action: "getMyCard", username: save.member.username, token: save.member.token});
+  if(res && !res.ok){ if(!brainAuthFailed){ brainAuthFailed = true; if(view === "YARD") render(); } }
   if(!res || !res.ok || !Array.isArray(res.picks)) return;
+  if(brainAuthFailed){ brainAuthFailed = false; if(view === "YARD") render(); }
   let changed = false;
   if(res.college !== undefined || res.favs !== undefined){
     const np = { college: res.college || "", favs: res.favs || {} };
@@ -1727,6 +1782,37 @@ function ownChalkHTML(){
 function canDeleteTalk(scope){
   if(isParkAdmin()) return true;
   return !!(save.member && scope === "page:" + save.member.username.toLowerCase());
+}
+function reverifyCardHTML(){
+  if(!save.member || !brainAuthFailed) return "";
+  return '<div class="card" style="border:2px solid var(--gold)"><div class="rankline">\u26a0 RE-VERIFY THIS DEVICE</div>' +
+    '<div class="joinline">The Park Brain does not recognize this browser\u2019s sign-in key anymore, so your card cannot sync here and admin tools like deleting from the Park Inbox cannot reach the Brain. Your @name, picks and points are safe. Email yourself a fresh code and enter it here to heal this device.</div>' +
+    '<input type="email" id="rvEmail" placeholder="The email you signed up with" value="' + esc(rvDraft.email) + '" style="margin-top:8px">' +
+    '<div style="margin-top:6px"><button class="btn small" id="rvSend">EMAIL ME A CODE</button> <span class="small" id="rvMsg"></span></div>' +
+    '<input type="text" id="rvCode" inputmode="numeric" placeholder="6-digit code from the email" maxlength="6" value="' + esc(rvDraft.code) + '" style="margin-top:8px">' +
+    '<div style="margin-top:6px"><button class="btn small" id="rvVerify">RE-VERIFY THIS DEVICE</button> <span class="small" id="rvMsg2"></span></div></div>';
+}
+function wireReverify(){
+  const send = document.getElementById("rvSend");
+  if(send) send.addEventListener("click", () => {
+    const email = (document.getElementById("rvEmail").value || "").trim();
+    const msg = document.getElementById("rvMsg");
+    if(!email){ msg.textContent = "Enter your signup email first."; return; }
+    msg.textContent = "Sending...";
+    parkPost({action: "register", username: save.member.username, email: email}).then(res => {
+      msg.textContent = res && res.ok ? "Code sent. It is good for 30 minutes." : ((res && res.why) || "That did not send.");
+    });
+  });
+  const ver = document.getElementById("rvVerify");
+  if(ver) ver.addEventListener("click", () => {
+    const code = (document.getElementById("rvCode").value || "").trim();
+    const msg2 = document.getElementById("rvMsg2");
+    msg2.textContent = "Checking...";
+    parkPost({action: "verify", username: save.member.username, code: code}).then(res => {
+      if(res && res.ok && res.token){ save.member.token = res.token; brainAuthFailed = false; rvDraft = {email: "", code: ""}; store(); msg2.textContent = "Verified. This device is healed."; parkSyncCard(); render(); }
+      else msg2.textContent = (res && res.why) || "That code did not check out.";
+    });
+  });
 }
 function memberCardHTML(){
   if(save.member){
@@ -2033,6 +2119,8 @@ window.addEventListener("resize", function(){ if(fitTimer) clearTimeout(fitTimer
 function render(){
   document.querySelectorAll("[id^='talkIn-']").forEach(inp => { talkDrafts[inp.id.slice(7)] = inp.value; });
   const vfEl = document.getElementById("vfName"); if(vfEl) verifyName = vfEl.value;
+  const rvE = document.getElementById("rvEmail"); if(rvE) rvDraft.email = rvE.value;
+  const rvC = document.getElementById("rvCode"); if(rvC) rvDraft.code = rvC.value;
   const pcEl = document.getElementById("profCollege");
   if(pcEl){ profDrafts = { college: pcEl.value, favs: {} }; FAV_LEAGUES.forEach(k => { const f = document.getElementById("fav" + k); profDrafts.favs[k] = f ? f.value : ""; }); }
   renderNav(); setUpdated();
