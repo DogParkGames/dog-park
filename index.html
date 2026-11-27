@@ -181,11 +181,11 @@ footer{text-align:center; color:var(--mut); font-size:12.5px; margin-top:26px; l
         <li><b>Pick the winner and call the margin.</b> Your pick locks the moment the game starts.</li>
         <li><b>Scoring, the Direct Hit way:</b> call the exact margin for <b>100 points</b>. Every point you are off inside ten costs 10. Miss the winner or land outside ten and it scores 0. No negatives, ever. On a UFC fight, call the winner and the round it ends.</li>
         <li><b>One account per person.</b> Members verify with an email code, so the Park's numbers stay honest: no fake players, no spam, no stuffing the Yardstick. Your username becomes the name on your Score Card, and once it is verified it is yours alone, so nobody can be mistaken for you.</li>
-        <li><b>Guests play free</b> on their own card. A guest card name stamps once and locks, like a dog tag. Guest picks stay on your own card only and never touch the community numbers. Join the Park and your picks count in the Park Yardstick and standings under your own @name, on your Score Card and the Park Board.</li>
+        <li><b>One stamp is your registration.</b> Pick one name, stamp it once, and it shows with an @ everywhere: your Score Card, the Park Board and your picks. Guests play free on their own card, and guest picks stay on your own card only and never touch the community numbers. Register your stamp with an email code and it is yours alone in every browser: your picks count in the Park Yardstick and standings, and talking in the Park unlocks.</li>
         <li><b>Keep usernames clean.</b> The Park is for everybody.</li>
       </ol>
       <div class="mrow">
-        <button class="btn" id="joinBtn">JOIN THE PARK</button>
+        <button class="btn" id="joinBtn">REGISTER YOUR @NAME</button>
         <button class="btn ghost" id="guestBtn">PLAY AS GUEST</button>
       </div>
       <div class="small mut" style="margin-top:10px">Free to play, bragging rights only.</div>
@@ -917,7 +917,7 @@ function myCard(){
   const per = {}; let tot = {points:0, picks:0, wins:0, winsPts:0, dh:0};
   for(const k of Object.keys(SPORTS)){ per[k] = sportStats(k);
     tot.points += per[k].points; tot.picks += per[k].picks; tot.wins += per[k].wins; tot.winsPts += per[k].winsPts; tot.dh += per[k].dh; }
-  return {name: save.member ? "@" + save.member.username : (save.name || "A Fan"), per: per, tot: tot, sup: !!save.supporter};
+  return {name: save.member ? "@" + save.member.username : (save.name ? "@" + save.name.replace(/^@+/, "") : "A Fan"), per: per, tot: tot, sup: !!save.supporter};
 }
 function rankTitle(points){
   if(points >= 6000) return "Yardstick Master";
@@ -1059,7 +1059,7 @@ function renderYard(){
   const keepMsg2 = keepMsg2El ? keepMsg2El.textContent : null;
   const card = myCard();
   let h = '<div class="card"><div class="rankline">MY SCORE CARD</div>' +
-    (save.member ? '<div class="joinline" style="margin:10px 0">Card name: <b' + (save.supporter ? ' style="color:var(--gold)"' : '') + '>@' + esc(save.member.username) + (save.supporter ? ' 🐾' : '') + '</b> · your verified Park name. It is yours alone, so no one can be mistaken for you.</div>' : (save.nameLocked && save.name ? '<div class="joinline" style="margin:10px 0">🐾 Card name: <b' + (save.supporter ? ' style="color:var(--gold)"' : '') + '>' + esc(save.name) + (save.supporter ? ' 🐾' : '') + '</b> · stamped on your dog tag and locked. It does not change. Join the Park below and your verified @name takes over the tag for good.</div>' : '<div style="margin:10px 0"><input type="text" id="fanName" placeholder="Pick your card name" value="' + esc(save.name) + '"><div class="small mut" style="margin-top:6px">Pick carefully: stamping your dog tag locks this name to your card for good. It cannot be changed later.</div><button class="btn small" id="stampBtn">STAMP MY DOG TAG</button> <span class="small" id="stampMsg"></span></div>')) +
+    (save.member ? '<div class="joinline" style="margin:10px 0">Card name: <b' + (save.supporter ? ' style="color:var(--gold)"' : '') + '>@' + esc(save.member.username) + (save.supporter ? ' 🐾' : '') + '</b> · your verified Park name. It is yours alone, so no one can be mistaken for you.</div>' : (save.nameLocked && save.name ? '<div class="joinline" style="margin:10px 0">🐾 Your @name: <b' + (save.supporter ? ' style="color:var(--gold)"' : '') + '>' + esc("@" + save.name.replace(/^@+/, "")) + (save.supporter ? ' 🐾' : '') + '</b> · stamped once and locked, like a registration. It does not change. Register it with your email below and it is yours alone in every browser, and talking in the Park unlocks.</div>' : '<div style="margin:10px 0"><input type="text" id="fanName" placeholder="Pick your @name" value="' + esc(save.name) + '"><div class="small mut" style="margin-top:6px">One stamp is your registration: this name shows with an @ everywhere in the Park. Pick carefully: stamping locks it to your card for good. It cannot be changed later.</div><button class="btn small" id="stampBtn">STAMP MY @NAME</button> <span class="small" id="stampMsg"></span></div>')) +
     '<div class="rankline">Rank: ' + rankEmoji(card.tot.points) + ' <b>' + rankTitle(card.tot.points) + '</b> · ' + card.tot.points + ' total points · ' + card.tot.dh + ' Direct Hits</div></div>';
   h += lockedPicksHTML();
   h += parkMeterHTML();
@@ -1240,12 +1240,12 @@ function parkLineHTML(ids){
 function memberCardHTML(){
   if(save.member){
     return '<div class="card"><div class="rankline">🌳 PARK MEMBER</div>' +
-      '<div class="joinline">You are <b>@' + esc(save.member.username) + '</b> · verified ✓ · this is the name on your Score Card and the Park Board, and nobody else can take it. Your picks count in the Park Yardstick and standings.</div>' +
+      '<div class="joinline">You are <b>@' + esc(save.member.username) + '</b> · verified ✓ · this is the name on your Score Card and the Park Board, and nobody else can take it. Your picks count in the Park Yardstick and standings, and this @name is your voice for talking in the Park.</div>' +
       '<button class="btn ghost small" id="rulesBtn">PARK RULES</button></div>';
   }
-  return '<div class="card"><div class="rankline">🌳 JOIN THE PARK</div>' +
-    '<div class="joinline">Member picks build the real Park Yardstick and the standings. One account per person, verified by an email code, so the numbers stay honest. <b>The username you pick becomes the name on your Score Card and the Park Board</b>, and once verified it is yours alone.</div>' +
-    '<input type="text" id="joinUser" placeholder="Pick a username (3 to 16 letters, numbers, _)" maxlength="16" value="' + esc(save.joinDraft && save.joinDraft.user ? save.joinDraft.user : (save.joinPending ? save.joinPending.username : "")) + '">' +
+  return '<div class="card"><div class="rankline">🌳 REGISTER YOUR @NAME</div>' +
+    '<div class="joinline">One stamp, registered. Your @name is your name on your Score Card, the Park Board and every message in the Park. <b>Verify it with an email code and it is yours alone in every browser</b>: your picks count in the Park Yardstick and standings, your card follows you, and talking in the Park unlocks. One account per person, so the numbers stay honest.</div>' +
+    '<input type="text" id="joinUser" placeholder="Your @name (3 to 16 letters, numbers, _)" maxlength="16" value="' + esc(save.joinDraft && save.joinDraft.user ? save.joinDraft.user : (save.joinPending ? save.joinPending.username : (save.nameLocked && save.name ? save.name.replace(/[^A-Za-z0-9_]/g, "").slice(0, 16) : ""))) + '">' +
     '<div class="small" id="joinPreview" style="margin-top:6px;font-weight:800"></div>' +
     '<input type="text" id="joinEmail" placeholder="Your email, for the verification code" style="margin-top:8px" value="' + esc(save.joinDraft && save.joinDraft.email ? save.joinDraft.email : "") + '">' +
     '<label class="checkline"><input type="checkbox" id="joinOptIn"' + (save.joinDraft && save.joinDraft.optIn ? " checked" : "") + '> Email me the weekly Park standings and the week ahead</label>' +
@@ -1510,7 +1510,7 @@ function inviteLink(){
 }
 function inviteText(){
   const c = myCard();
-  return "🐾 " + c.name + " is calling you out at DOG PARK, the free sports pick'em game.\nPick the winner. Call the margin. Measure up.\n\nOpen my invite link and my Dog Tag card lands on your Park Board:\n" + inviteLink() + "\n\nStamp your dog tag, make your picks, then send me your invite back.";
+  return "🐾 " + c.name + " is calling you out at DOG PARK, the free sports pick'em game.\nPick the winner. Call the margin. Measure up.\n\nOpen my invite link and my Dog Tag card lands on your Park Board:\n" + inviteLink() + "\n\nRegister your @name, make your picks, then send me your invite back.";
 }
 function checkInviteLink(){
   try{
