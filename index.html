@@ -1464,6 +1464,7 @@ function renderYard(){
     'The Yardstick is the posted line for the game, the market\'s collective call on the margin, shown so you can measure your call against the crowd\'s number.<br><b>UFC fights:</b> pick the winner and the round it ends, or goes the distance. Exact round is a Direct Hit for 100, one round off scores 50, right winner with the round missed scores 25.</div></div>';
   h += memberCardHTML();
   h += safeHTML(reverifyCardHTML);
+  h += safeHTML(reportCardHTML);
   h += supporterCardHTML();
   h += transferCardHTML();
   v.innerHTML = h;
@@ -1601,7 +1602,12 @@ function reportCardHTML(){
     '<div class="joinline">Found something broken, or got an idea for the Park? Send a note. It goes straight to @DogPark, the Park admin.</div>' +
     '<textarea id="reportText" rows="3" maxlength="500" placeholder="What happened, or what would you add?" style="width:100%;margin-top:8px"></textarea>' +
     '<div style="margin-top:6px"><button class="btn small" id="bugSend">\ud83d\udc1e REPORT BUG</button> <button class="btn ghost small" id="ideaSend">\ud83d\udca1 SEND SUGGESTION</button> <span class="small" id="reportMsg"></span></div></div>';
-  if(isParkAdmin()){
+  return h;
+}
+function inboxCardHTML(){
+  if(!isParkAdmin()) return "";
+  let h = "";
+  {
     const bugs = talkCache["bugs"], ideas = talkCache["ideas"];
     h += '<div class="card"><div class="rankline">\ud83d\udce5 PARK INBOX (ADMIN)</div>';
     h += '<div class="small mut" style="margin-top:6px">BUG REPORTS</div>' + (bugs ? (bugs.length ? bugs.slice().reverse().map(m => talkRowHTML(m, "bugs")).join("") : '<div class="small mut">No bug reports.</div>') : '<div class="small mut">Loading...</div>');
@@ -1705,7 +1711,7 @@ function renderPage(){
   if(mine) h += profileEditorHTML();
   if(mine) h += personalStatsHTML();
   if(mine) h += safeHTML(verifyCardHTML);
-  if(mine) h += safeHTML(reportCardHTML);
+  if(mine) h += safeHTML(inboxCardHTML);
   h += parkBoardHTML();
   const notes = talkCache[scope];
   h += '<div class="card"><div class="rankline">\ud83e\uddf1 THE CHALKBOARD</div>' +
