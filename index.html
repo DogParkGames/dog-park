@@ -1378,6 +1378,19 @@ function myGraphsHTML(){
   return h;
 }
 function safeHTML(fn){ try { return fn(); } catch(e){ return ""; } }
+function scoreCardHTML(){
+  const card = myCard();
+  let h = '<div class="card"><div class="rankline">MY SCORE CARD</div>' +
+    (save.member ? '<div class="joinline" style="margin:10px 0">Card name: <b' + (save.supporter ? ' style="color:var(--gold)"' : '') + '>@' + esc(save.member.username) + (save.supporter ? ' 🐾' : '') + '</b> · your verified Park name. It is yours alone, so no one can be mistaken for you.</div>' : (save.nameLocked && save.name ? '<div class="joinline" style="margin:10px 0">🐾 Your @name: <b' + (save.supporter ? ' style="color:var(--gold)"' : '') + '>' + esc("@" + save.name.replace(/^@+/, "")) + (save.supporter ? ' 🐾' : '') + '</b> · stamped once and locked, like a registration. It does not change. Register it with your email below and it is yours alone in every browser, and talking in the Park unlocks.</div>' : '<div style="margin:10px 0"><input type="text" id="fanName" placeholder="Pick your @name" value="' + esc(save.name) + '"><div class="small mut" style="margin-top:6px">One stamp is your registration: this name shows with an @ everywhere in the Park. Pick carefully: stamping locks it to your card for good. It cannot be changed later.</div><button class="btn small" id="stampBtn">STAMP MY @NAME</button> <span class="small" id="stampMsg"></span></div>')) +
+    (isParkAdmin() ? '<div style="margin:0 0 10px"><span style="display:inline-block;padding:4px 10px;border:1px solid var(--gold);border-radius:999px;color:var(--gold);font-weight:700;letter-spacing:.04em">👑 TOP DOG · ADMINISTRATOR COLLAR</span> <span class="small mut">This card runs the Park: it can delete talk and callouts.</span></div>' : '') + '<div class="rankline">Rank: ' + rankEmoji(card.tot.points) + ' <b>' + rankTitle(card.tot.points) + '</b> · ' + card.tot.points + ' total points · ' + card.tot.dh + ' Direct Hits</div></div>';
+  h += '<div class="card"><div class="tblwrap"><table><tr><th>LEAGUE</th><th>POINTS</th><th>PICKS</th><th>WINS</th><th>WIN %</th><th>PTS WIN %</th><th>DIRECT HITS</th></tr>';
+  for(const k of Object.keys(SPORTS)){
+    const s = card.per[k];
+    h += '<tr><td>' + SPORTS[k].label + '</td><td>' + s.points + '</td><td>' + s.picks + '</td><td>' + s.wins + '</td><td>' + pct(s.wins, s.picks) + '%</td><td>' + pct(s.winsPts, s.picks) + '%</td><td>' + s.dh + '</td></tr>';
+  }
+  h += '<tr style="font-weight:900"><td>ALL PARKS</td><td>' + card.tot.points + '</td><td>' + card.tot.picks + '</td><td>' + card.tot.wins + '</td><td>' + pct(card.tot.wins, card.tot.picks) + '%</td><td>' + pct(card.tot.winsPts, card.tot.picks) + '%</td><td>' + card.tot.dh + '</td></tr></table></div></div>';
+  return h;
+}
 function renderYard(){
   const v = document.getElementById("view");
   const keep = {};
@@ -1389,18 +1402,10 @@ function renderYard(){
   const keepMsg2El = document.getElementById("joinMsg2");
   const keepMsg2 = keepMsg2El ? keepMsg2El.textContent : null;
   const card = myCard();
-  let h = '<div class="card"><div class="rankline">MY SCORE CARD</div>' +
-    (save.member ? '<div class="joinline" style="margin:10px 0">Card name: <b' + (save.supporter ? ' style="color:var(--gold)"' : '') + '>@' + esc(save.member.username) + (save.supporter ? ' 🐾' : '') + '</b> · your verified Park name. It is yours alone, so no one can be mistaken for you.</div>' : (save.nameLocked && save.name ? '<div class="joinline" style="margin:10px 0">🐾 Your @name: <b' + (save.supporter ? ' style="color:var(--gold)"' : '') + '>' + esc("@" + save.name.replace(/^@+/, "")) + (save.supporter ? ' 🐾' : '') + '</b> · stamped once and locked, like a registration. It does not change. Register it with your email below and it is yours alone in every browser, and talking in the Park unlocks.</div>' : '<div style="margin:10px 0"><input type="text" id="fanName" placeholder="Pick your @name" value="' + esc(save.name) + '"><div class="small mut" style="margin-top:6px">One stamp is your registration: this name shows with an @ everywhere in the Park. Pick carefully: stamping locks it to your card for good. It cannot be changed later.</div><button class="btn small" id="stampBtn">STAMP MY @NAME</button> <span class="small" id="stampMsg"></span></div>')) +
-    (isParkAdmin() ? '<div style="margin:0 0 10px"><span style="display:inline-block;padding:4px 10px;border:1px solid var(--gold);border-radius:999px;color:var(--gold);font-weight:700;letter-spacing:.04em">👑 TOP DOG · ADMINISTRATOR COLLAR</span> <span class="small mut">This card runs the Park: it can delete talk and callouts.</span></div>' : '') + '<div class="rankline">Rank: ' + rankEmoji(card.tot.points) + ' <b>' + rankTitle(card.tot.points) + '</b> · ' + card.tot.points + ' total points · ' + card.tot.dh + ' Direct Hits</div></div>';
-  h += lockedPicksHTML();
+  let h = "";
+  if(!save.member) h += scoreCardHTML() + lockedPicksHTML();
   h += parkMeterHTML();
   h += safeHTML(trendsHTML);
-  h += '<div class="card"><div class="tblwrap"><table><tr><th>LEAGUE</th><th>POINTS</th><th>PICKS</th><th>WINS</th><th>WIN %</th><th>PTS WIN %</th><th>DIRECT HITS</th></tr>';
-  for(const k of Object.keys(SPORTS)){
-    const s = card.per[k];
-    h += '<tr><td>' + SPORTS[k].label + '</td><td>' + s.points + '</td><td>' + s.picks + '</td><td>' + s.wins + '</td><td>' + pct(s.wins, s.picks) + '%</td><td>' + pct(s.winsPts, s.picks) + '%</td><td>' + s.dh + '</td></tr>';
-  }
-  h += '<tr style="font-weight:900"><td>ALL PARKS</td><td>' + card.tot.points + '</td><td>' + card.tot.picks + '</td><td>' + card.tot.wins + '</td><td>' + pct(card.tot.wins, card.tot.picks) + '%</td><td>' + pct(card.tot.winsPts, card.tot.picks) + '%</td><td>' + card.tot.dh + '</td></tr></table></div></div>';
   // Yard Board
   const board = [card].concat((save.board || []).filter(b => b.name !== card.name)).slice().sort((a, b) => b.tot.points - a.tot.points);
   boardCache = board;
@@ -1689,6 +1694,8 @@ function renderPage(){
     '<div style="font-family:Oswald,sans-serif;font-size:30px;font-weight:700;margin-top:6px">@' + esc(pageUser) + (pc && pc.sup ? ' <span style="color:var(--gold)">\ud83d\udc3e</span>' : '') + '</div>' +
     (pc ? '<div class="joinline" style="margin-top:4px">' + rankEmoji(pc.tot.points) + ' <b>' + rankTitle(pc.tot.points) + '</b> \u00b7 ' + pc.tot.points + ' points \u00b7 ' + pc.tot.picks + ' picks \u00b7 ' + pct(pc.tot.wins, pc.tot.picks) + '% wins \u00b7 ' + pc.tot.dh + ' Direct Hits</div>' : '<div class="joinline" style="margin-top:4px">A verified Park player.</div>') +
     colors + '<div style="margin-top:10px"><button class="btn ghost small" data-backyard="1">\u2190 BACK TO MY PARK</button></div></div>';
+  if(mine) h += scoreCardHTML();
+  if(mine) h += lockedPicksHTML();
   if(mine) h += profileEditorHTML();
   if(mine) h += personalStatsHTML();
   const notes = talkCache[scope];
