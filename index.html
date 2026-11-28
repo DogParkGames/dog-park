@@ -1466,8 +1466,6 @@ function renderYard(){
   h += safeHTML(reverifyCardHTML);
   h += supporterCardHTML();
   h += transferCardHTML();
-  h += safeHTML(reportCardHTML);
-  h += safeHTML(verifyCardHTML);
   v.innerHTML = h;
   safeWire(wireMemberCard);
   safeWire(wireTransferCard);
@@ -1706,6 +1704,8 @@ function renderPage(){
   if(mine) h += lockedPicksHTML();
   if(mine) h += profileEditorHTML();
   if(mine) h += personalStatsHTML();
+  if(mine) h += safeHTML(verifyCardHTML);
+  if(mine) h += safeHTML(reportCardHTML);
   h += parkBoardHTML();
   const notes = talkCache[scope];
   h += '<div class="card"><div class="rankline">\ud83e\uddf1 THE CHALKBOARD</div>' +
@@ -1729,6 +1729,8 @@ function renderPage(){
   wireTalkDeletes(v);
   safeWire(wireProfile);
   safeWire(wireShareButtons);
+  safeWire(wireReport);
+  safeWire(wireVerify);
 }
 function myProfile(){
   const p = save.profile || {};
