@@ -1852,7 +1852,7 @@ function memberCardHTML(){
   if(save.member){
     return '<div class="card"><div class="rankline">🌳 PARK MEMBER</div>' +
       '<div class="joinline">You are <b>@' + esc(save.member.username) + '</b> · verified ✓ · this is the name on your Score Card and the Park Board, and nobody else can take it. Your picks count in the Park Yardstick and standings, and this @name is your voice for talking in the Park.</div>' +
-      '<button class="btn ghost small" data-openpage="' + esc(save.member.username) + '">VIEW YOUR PAGE</button> <button class="btn ghost small" id="rulesBtn">PARK RULES</button></div>';
+      '<button class="btn ghost small" data-page="' + esc(save.member.username) + '">VIEW YOUR PAGE</button> <button class="btn ghost small" id="rulesBtn">PARK RULES</button></div>';
   }
   return '<div class="card"><div class="rankline">🌳 REGISTER YOUR @NAME</div>' +
     '<div class="joinline">One stamp, registered. Your @name is your name on your Score Card, the Park Board and every message in the Park. <b>Verify it with an email code and it is yours alone in every browser</b>: your picks count in the Park Yardstick and standings, your card follows you, and talking in the Park unlocks. One account per person, so the numbers stay honest.</div>' +
