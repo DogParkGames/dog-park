@@ -1395,23 +1395,12 @@ function renderYard(){
   h += lockedPicksHTML();
   h += parkMeterHTML();
   h += safeHTML(trendsHTML);
-  h += safeHTML(myGraphsHTML);
-  h += safeHTML(recordsHTML);
   h += '<div class="card"><div class="tblwrap"><table><tr><th>LEAGUE</th><th>POINTS</th><th>PICKS</th><th>WINS</th><th>WIN %</th><th>PTS WIN %</th><th>DIRECT HITS</th></tr>';
   for(const k of Object.keys(SPORTS)){
     const s = card.per[k];
     h += '<tr><td>' + SPORTS[k].label + '</td><td>' + s.points + '</td><td>' + s.picks + '</td><td>' + s.wins + '</td><td>' + pct(s.wins, s.picks) + '%</td><td>' + pct(s.winsPts, s.picks) + '%</td><td>' + s.dh + '</td></tr>';
   }
   h += '<tr style="font-weight:900"><td>ALL PARKS</td><td>' + card.tot.points + '</td><td>' + card.tot.picks + '</td><td>' + card.tot.wins + '</td><td>' + pct(card.tot.wins, card.tot.picks) + '%</td><td>' + pct(card.tot.winsPts, card.tot.picks) + '%</td><td>' + card.tot.dh + '</td></tr></table></div></div>';
-  const rows = [];
-  for(const k of Object.keys(SPORTS)){ const s = card.per[k]; if(s.picks) rows.push([SPORTS[k].label + " WIN %", pct(s.wins, s.picks)]); }
-  if(rows.length) h += statBars("MY PREDICTION PERCENTS", rows);
-  const dhRows = [];
-  for(const k of Object.keys(SPORTS)){ const s = card.per[k]; if(s.picks) dhRows.push([SPORTS[k].label + " DIRECT HIT %", pct(s.dh, s.picks)]); }
-  if(dhRows.length) h += statBars("DIRECT HIT PERCENTS", dhRows);
-  const tc = trophyCase();
-  h += '<div class="card"><div class="rankline">🏆 TROPHY CASE · ' + tc.filter(x => x.got).length + ' of ' + tc.length + ' earned</div><div class="trophies">' +
-    tc.map(x => '<div class="trophy' + (x.got ? '' : ' locked') + '"><div class="emo">' + x.emo + '</div><div class="tname">' + x.name + '</div><div class="tdesc">' + x.desc + '</div></div>').join("") + '</div></div>';
   // Yard Board
   const board = [card].concat((save.board || []).filter(b => b.name !== card.name)).slice().sort((a, b) => b.tot.points - a.tot.points);
   boardCache = board;
@@ -1439,15 +1428,15 @@ function renderYard(){
   h += safeHTML(reportCardHTML);
   h += safeHTML(verifyCardHTML);
   v.innerHTML = h;
-  wireMemberCard();
-  wireTransferCard();
-  wireCallouts();
-  wireTalkDeletes(document);
-  wireReport();
-  wireVerify();
-  wireReverify();
-  wirePageButtons();
-  wireProfile();
+  safeWire(wireMemberCard);
+  safeWire(wireTransferCard);
+  safeWire(wireCallouts);
+  safeWire(() => wireTalkDeletes(document));
+  safeWire(wireReport);
+  safeWire(wireVerify);
+  safeWire(wireReverify);
+  safeWire(wirePageButtons);
+  safeWire(wireProfile);
   ["joinUser", "joinEmail", "joinCode"].forEach(id => { const el = document.getElementById(id); if(el && keep[id]) el.value = keep[id]; });
   if(keepStep2 && document.getElementById("joinStep2")) document.getElementById("joinStep2").style.display = keepStep2;
   if(keepMsg && document.getElementById("joinMsg")) document.getElementById("joinMsg").textContent = keepMsg;
@@ -1466,19 +1455,18 @@ function renderYard(){
   document.getElementById("shareBtn").addEventListener("click", () => {
     const c = myCard();
     const text = "🐾 DOG PARK · " + c.name + " · " + rankEmoji(c.tot.points) + " " + rankTitle(c.tot.points) + "\n" + c.tot.points + " points · " + c.tot.picks + " picks · " + pct(c.tot.wins, c.tot.picks) + "% winners · " + c.tot.dh + " Direct Hits · " + trophyCase().filter(x => x.got).length + " trophies 🏆\nPick the winner. Call the margin. Measure up.\n\nPlay free and put my card on your Park Board with my invite link:\n" + inviteLink();
-    const box = document.getElementById("shareBox"); box.style.display = "block"; box.textContent = text;
-    if(navigator.share){ navigator.share({title:"Dog Park", text:text}).catch(() => {}); }
+    const box = document.getElementById("shareBox");
+    shareOut("Dog Park", text, box);
   });
   document.getElementById("copyBtn").addEventListener("click", () => {
     const code = seasonCode();
-    const box = document.getElementById("shareBox"); box.style.display = "block"; box.textContent = code;
-    if(navigator.clipboard) navigator.clipboard.writeText(code).catch(() => {});
+    const box = document.getElementById("shareBox");
+    copyOut(code, box);
   });
   document.getElementById("inviteBtn").addEventListener("click", () => {
     const text = inviteText();
-    const box = document.getElementById("shareBox"); box.style.display = "block"; box.textContent = text;
-    if(navigator.share){ navigator.share({title: "Dog Park invite", text: text}).catch(() => {}); }
-    else if(navigator.clipboard){ navigator.clipboard.writeText(text).catch(() => {}); }
+    const box = document.getElementById("shareBox");
+    shareOut("Dog Park invite", text, box);
   });
   document.getElementById("cardImgBtn").addEventListener("click", () => { drawCardImage(); });
   document.getElementById("importBtn").addEventListener("click", () => {
@@ -1701,6 +1689,8 @@ function renderPage(){
     '<div style="font-family:Oswald,sans-serif;font-size:30px;font-weight:700;margin-top:6px">@' + esc(pageUser) + (pc && pc.sup ? ' <span style="color:var(--gold)">\ud83d\udc3e</span>' : '') + '</div>' +
     (pc ? '<div class="joinline" style="margin-top:4px">' + rankEmoji(pc.tot.points) + ' <b>' + rankTitle(pc.tot.points) + '</b> \u00b7 ' + pc.tot.points + ' points \u00b7 ' + pc.tot.picks + ' picks \u00b7 ' + pct(pc.tot.wins, pc.tot.picks) + '% wins \u00b7 ' + pc.tot.dh + ' Direct Hits</div>' : '<div class="joinline" style="margin-top:4px">A verified Park player.</div>') +
     colors + '<div style="margin-top:10px"><button class="btn ghost small" data-backyard="1">\u2190 BACK TO MY PARK</button></div></div>';
+  if(mine) h += profileEditorHTML();
+  if(mine) h += personalStatsHTML();
   const notes = talkCache[scope];
   h += '<div class="card"><div class="rankline">\ud83e\uddf1 THE CHALKBOARD</div>' +
     '<div class="joinline" style="margin-top:6px">' + (mine ? 'Your wall. Notes other players leave you wait here, like the old Yard.' : 'Leave a note for @' + esc(pageUser) + '. It waits on their page until they wander by, like the old Yard.') + '</div>' +
@@ -1721,6 +1711,7 @@ function renderPage(){
     else if(msg) msg.textContent = (res && res.why) || "That did not post.";
   });
   wireTalkDeletes(v);
+  safeWire(wireProfile);
 }
 function myProfile(){
   const p = save.profile || {};
@@ -1731,7 +1722,16 @@ function teamList(sport){
   ((feed[sport] || {}).events || []).forEach(ev => { set[ev.away.name] = 1; set[ev.home.name] = 1; });
   return Object.keys(set).sort();
 }
+function profileFilled(){
+  const p = myProfile();
+  return !!(p.hometown || FAV_LEAGUES.some(k => p.favs && p.favs[k]));
+}
 function profileCardHTML(){
+  if(!save.member) return "";
+  if(profileFilled()) return "";
+  return profileEditorHTML();
+}
+function profileEditorHTML(){
   if(!save.member) return "";
   const cur = profDrafts || myProfile();
   let h = '<div class="card"><div class="rankline">\ud83c\udfa8 YOUR COLORS</div>' +
@@ -2048,11 +2048,46 @@ function drawCardImage(){
       a.href = url; a.download = "dog-park-dog-tag-card.png"; a.className = "btn ghost small"; a.style.marginTop = "8px"; a.textContent = "SAVE THE IMAGE";
       box.appendChild(a);
       const text = "🐾 MY DOG TAG SCORE CARD · " + c.name + " · " + rankTitle(c.tot.points) + "\n" + c.tot.points + " points · " + c.tot.picks + " picks · " + pct(c.tot.wins, c.tot.picks) + "% winners · " + c.tot.dh + " Direct Hits · " + tcount + " trophies\nPick the winner. Call the margin. Measure up.\n\nPlay free and put my card on your Park Board with my invite link:\n" + inviteLink();
-      if(navigator.canShare && navigator.canShare({files: [file]})){
-        navigator.share({files: [file], title: "Dog Park Dog Tag Score Card", text: text}).catch(() => {});
-      }
+      const shareImgBtn = document.createElement("button");
+      shareImgBtn.className = "btn small"; shareImgBtn.style.marginTop = "8px"; shareImgBtn.style.marginLeft = "8px"; shareImgBtn.textContent = "\ud83d\udce4 SHARE THE IMAGE";
+      shareImgBtn.addEventListener("click", () => {
+        if(navigator.canShare && navigator.canShare({files: [file]})){
+          navigator.share({files: [file], title: "Dog Park Dog Tag Score Card", text: text}).catch(() => { note.textContent = "Sharing did not open here. SAVE THE IMAGE and post it from your photos instead."; });
+        } else { note.textContent = "This browser cannot share images directly. SAVE THE IMAGE and post it from your photos instead."; }
+      });
+      box.appendChild(shareImgBtn);
     }, "image/png");
   }
+}
+function legacyCopy_(text){
+  try{ const ta = document.createElement("textarea"); ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand("copy"); ta.remove(); return true; }catch(e){ return false; }
+}
+function copyOut(text, box){
+  function done(ok){ if(box){ box.style.display = "block"; box.textContent = text + (ok ? "\n\n(Copied: paste it anywhere.)" : "\n\n(Long-press or select the text above to copy it.)"); } }
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(() => done(true)).catch(() => done(legacyCopy_(text))); }
+  else done(legacyCopy_(text));
+}
+function shareOut(title, text, box){
+  if(box){ box.style.display = "block"; box.textContent = text; }
+  if(navigator.share){ navigator.share({title: title, text: text}).catch(() => copyOut(text, box)); }
+  else copyOut(text, box);
+}
+function safeWire(fn){ try{ fn(); }catch(e){} }
+function personalStatsHTML(){
+  const card = myCard();
+  let h = safeHTML(myGraphsHTML);
+  h += safeHTML(recordsHTML);
+  const rows = [];
+  for(const k of Object.keys(SPORTS)){ const s = card.per[k]; if(s.picks) rows.push([SPORTS[k].label + " WIN %", pct(s.wins, s.picks)]); }
+  if(rows.length) h += statBars("MY PREDICTION PERCENTS", rows);
+  const dhRows = [];
+  for(const k of Object.keys(SPORTS)){ const s = card.per[k]; if(s.picks) dhRows.push([SPORTS[k].label + " DIRECT HIT %", pct(s.dh, s.picks)]); }
+  if(dhRows.length) h += statBars("DIRECT HIT PERCENTS", dhRows);
+  const tc = trophyCase();
+  h += '<div class="card"><div class="rankline">\ud83c\udfc6 TROPHY CASE \u00b7 ' + tc.filter(x => x.got).length + ' of ' + tc.length + ' earned</div><div class="trophies">' +
+    tc.map(x => '<div class="trophy' + (x.got ? '' : ' locked') + '"><div class="emo">' + x.emo + '</div><div class="tname">' + x.name + '</div><div class="tdesc">' + x.desc + '</div></div>').join("") + '</div></div>';
+  return h;
 }
 function seasonCode(){
   const c = myCard();
